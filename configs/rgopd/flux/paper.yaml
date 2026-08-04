@@ -1,0 +1,10 @@
+task: train-rgopd
+backbone: flux
+rollout_steps: 10
+optimized_steps: 9
+student: {adaptation: lora, rank: 32, alpha: 64}
+reward_heads: [preference]
+reward_scale: 0.80
+active_sigma_min: 0.2
+anchor: frozen_reference
+

@@ -1,0 +1,4 @@
+This product includes research code derived from the source workspaces listed
+in docs/source-provenance.md and interoperates with Hugging Face diffusers.
+Third-party model weights and datasets are not distributed with this package.
+
