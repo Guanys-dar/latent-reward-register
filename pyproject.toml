@@ -1,0 +1,40 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "latent-reward-register"
+version = "0.1.0"
+description = "Latent Reward Registers, reward-gradient OPD, and reward-guided sampling"
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "Apache-2.0"}
+dependencies = [
+  "accelerate>=0.31",
+  "diffusers @ git+https://github.com/huggingface/diffusers.git@c8c84018e",
+  "numpy>=1.26",
+  "peft>=0.17",
+  "pillow>=10",
+  "pyyaml>=6",
+  "safetensors>=0.4",
+  "torch>=2.4",
+  "transformers>=4.41",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8", "ruff>=0.9"]
+tracking = ["swanlab", "wandb"]
+
+[project.scripts]
+lrr = "latent_reward_register.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = ["gpu: requires a CUDA GPU and model weights"]
+
+[tool.ruff]
+line-length = 119
+

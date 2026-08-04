@@ -1,0 +1,21 @@
+task: train-register
+backbone:
+  name: sd3
+  model_name_or_path: stabilityai/stable-diffusion-3-medium-diffusers
+  revision: c8c84018e
+register:
+  head_names: [preference, imagereward]
+  feature_layers: [4, 8, 12]
+  num_register_tokens: 32
+  num_attention_heads: 8
+  pool_factor: 4
+train:
+  epochs: 3
+  global_batch_size: 64
+  precision: bf16
+  learning_rate: 5.0e-5
+  weight_decay: 0.01
+  warmup_steps: 1000
+  ema_decay: 0.999
+  max_grad_norm: 1.0
+

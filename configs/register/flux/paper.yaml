@@ -1,0 +1,22 @@
+task: train-register
+backbone:
+  name: flux
+  model_name_or_path: black-forest-labs/FLUX.1-dev
+  revision: c8c84018e
+  embedded_guidance_scale: 3.5
+register:
+  head_names: [preference, imagereward]
+  feature_layers: [9, 19, 28]
+  num_register_tokens: 32
+  num_attention_heads: 8
+  pool_factor: 4
+train:
+  epochs: 3
+  global_batch_size: 32
+  precision: bf16
+  learning_rate: 5.0e-5
+  weight_decay: 0.01
+  warmup_steps: 1000
+  ema_decay: 0.999
+  max_grad_norm: 1.0
+

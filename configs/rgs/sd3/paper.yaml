@@ -1,0 +1,11 @@
+task: sample
+backbone: sd3
+steps: 42
+resolution: [1024, 1024]
+text_guidance_scale: 4.5
+heads: [preference, imagereward]
+guidance:
+  bands: [[0.8, 0.30], [0.2, 0.05]]
+  min_gradient_rms: 1.0e-6
+  max_scale_factor: 2.0
+

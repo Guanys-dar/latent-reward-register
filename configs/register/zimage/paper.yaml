@@ -1,0 +1,22 @@
+task: train-register
+backbone:
+  name: z-image
+  model_name_or_path: Tongyi-MAI/Z-Image-Turbo
+  revision: c8c84018e
+register:
+  head_names: [preference, imagereward]
+  feature_layers: [5, 10, 15]
+  num_register_tokens: 32
+  num_attention_heads: 8
+  pool_factor: 4
+  noise_convention: native_t_equals_one_minus_sigma
+train:
+  epochs: 3
+  global_batch_size: 32
+  precision: bf16
+  learning_rate: 5.0e-5
+  weight_decay: 0.01
+  warmup_steps: 1000
+  ema_decay: 0.999
+  max_grad_norm: 1.0
+

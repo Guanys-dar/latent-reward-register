@@ -1,0 +1,11 @@
+task: sample
+backbone: flux
+steps: 40
+resolution: [1024, 1024]
+embedded_guidance_scale: 3.5
+heads: [preference, imagereward]
+guidance:
+  bands: [[0.8, 0.30], [0.2, 0.10]]
+  min_gradient_rms: 1.0e-6
+  max_scale_factor: 2.0
+
