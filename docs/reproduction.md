@@ -28,3 +28,9 @@ fixed benchmark split. Generation comparisons must use matched prompts, seeds,
 resolution, sampler, and metric implementation. Do not select checkpoints on
 the final test prompts.
 
+## Deferred assets
+
+Checkpoint publication, training-data manifests, and the exact paper test sets
+are deferred pending final provenance confirmation. Their absence does not
+change the package layout or workflow contracts. Use `lrr plan <config>` to see
+the required runtime inputs for any preset.

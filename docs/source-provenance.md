@@ -11,7 +11,7 @@ final SHA-256 hashes.
 | SD3 RGS | `/home/guanyuanshen/RT-guided-sampling/flow_grpo` | Contains the original register backend and SD3 sampler patch |
 | FLUX RGS | `z-image-reward-matrix/node4/src/scripts/eval` | Final FLUX Table-2 schedule and checkpoint loader |
 | SD3 RG-OPD | `/home/guanyuanshen/rt-gradient-opd/RG-OPD` | On-policy trainer and reward-gradient teacher |
-| FLUX RG-OPD | `z-image-reward-matrix/node5/src` | FLUX trainer port and final configs |
+| FLUX RG-OPD | `z-image-reward-matrix/node5/src` | Canonical trainer `scripts/train_flux_rgopd.py`, config `configs/rgopd_flux.py`, implementation/evaluation under `flux_opd/` |
 
 ## Resolved discrepancies
 
@@ -24,10 +24,14 @@ final SHA-256 hashes.
   result rather than aliasing both through a single method name.
 - Z-Image is released for register training and evaluation only. Its exploratory
   guided-sampling scripts are not part of the paper-supported RGS interface.
+- The canonical FLUX RG-OPD experiment family is node5 unified-v3. The primary
+  recorded run is `flux_rgopd_unified_v3_hps_rt080`: preference/HPS head,
+  reward scale 0.80 for sigma above 0.2, 150 epochs, rank-32 LoRA, and the
+  register disabled at student inference. Flow-Factory and earlier node ports
+  are not the release implementation.
 
 ## Excluded material
 
 Training logs, generated images, local model paths, cached credentials, vendored
 HPSv3, complete diffusers clones, baseline implementations, and failed or
 superseded experiments are excluded.
-

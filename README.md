@@ -13,6 +13,7 @@ RG-OPD updates a LoRA student.
 ```bash
 pip install -e '.[dev]'
 lrr list-backbones
+lrr validate-release --root .
 ```
 
 The dependency lock pins the diffusers source revision used while consolidating
@@ -30,6 +31,23 @@ upstream licenses and access requirements.
 - Dataset manifests use relative paths and the schema in `docs/data-format.md`.
 - Original experiment workspaces, logs, absolute paths, and complete upstream
   repositories are deliberately excluded.
+
+## Release layout
+
+See `docs/release-layout.md` for the capability-oriented tree. The package
+keeps register training, preference scoring, RGS, and RG-OPD behind shared
+Python seams; paper checkpoints, datasets, and exact benchmark prompt files
+remain deferred inputs.
+
+Validate every checked-in workflow preset without downloading model weights:
+
+```bash
+lrr validate-release --root .
+```
+
+The output identifies the canonical FLUX RG-OPD provenance under
+`z-image-reward-matrix/node5/src` while keeping that experiment workspace out
+of the release package.
 
 ## Python interface
 
