@@ -1,6 +1,6 @@
 # Latent Reward Registers
 
-Reference code for **Latent Reward Registers**, **Reward-Gradient On-Policy
+Research-preview code for **Latent Reward Registers**, **Reward-Gradient On-Policy
 Distillation (RG-OPD)**, and **Reward-Guided Sampling (RGS)**.
 
 The repository exposes one reward-register interface across SD3-Medium,
@@ -14,9 +14,25 @@ RG-OPD updates a LoRA student.
 pip install -e '.[dev]'
 lrr list-backbones
 lrr validate-release --root .
+lrr smoke-release
 ```
 
-The dependency lock pins the diffusers source revision used while consolidating
+Install `.[models]` only when using the legacy diffusers-backed model ports.
+
+## Release status
+
+The portable checkpoint, register-training, pairwise-evaluation, RGS, and
+RG-OPD algorithm seams are runnable and covered by CPU integration tests.
+`lrr smoke-release` executes all four paths without external assets.
+
+This revision is **not yet a model-backed reproduction release**. The SD3,
+FLUX, and Z-Image workflow commands validate configs and print plans with
+`--dry-run`; their diffusers feature-extraction/sampler compatibility layers
+have not yet been ported behind the public adapters. Table 1 reproduction and
+paper-scale GPU parity therefore remain unverified, independently of the
+deferred checkpoint and dataset publication.
+
+The `models` extra pins the diffusers source revision used while consolidating
 the research code. Model weights are not included and remain subject to their
 upstream licenses and access requirements.
 
@@ -77,9 +93,10 @@ register = load_legacy_register(
 )
 ```
 
-Training, sampling, and tests cross this same seam. Backbone-specific latent
+Core training, sampling, and tests cross this same seam. Backbone-specific latent
 packing, time conventions, prompt conditioning, and transformer traversal stay
-inside adapters.
+inside adapters; the public diffusers adapters are currently explicit stubs
+until those compatibility implementations are ported.
 
 ## Reproduction policy
 
@@ -95,5 +112,5 @@ pytest -q
 ```
 
 CPU tests cover the shared guidance and RG-OPD equations, data schema, and
-checkpoint contract. Full adapter parity and GPU smoke tests require the
-corresponding model weights.
+checkpoint contract. They do not establish full adapter parity or paper-result
+reproduction. Run `lrr smoke-release` for the asset-free integration check.

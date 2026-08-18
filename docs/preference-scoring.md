@@ -19,10 +19,16 @@ output = register.score_and_grad(
 )
 ```
 
+Pairwise evaluation is executable through
+`latent_reward_register.evaluate_preference_pairs`. It accepts iterable
+`PreferencePairBatch` objects, treats label `0` as the first sample and label
+`1` as the second, counts exact score ties separately, and returns aggregate
+accuracy metrics.
+
 Table 1 pair metadata, image assets, and released register checkpoints are
 intentionally deferred. Once supplied, the evaluator should preserve pair
 ordering, prompt groups, and the checkpoint-embedded configuration.
 
-Until those assets are published, the asset-backed Table 1 runner remains
-disabled. The model-level API remains available for integration once the
-checkpoint and Table 1 pair manifest are published.
+Until those assets are published, an end-to-end Table 1 file loader and runner
+remain unavailable. The evaluator itself is covered by CPU tests and the
+asset-free release smoke command.
