@@ -134,8 +134,16 @@ def validate_release(root: str | Path) -> dict[str, Any]:
     }
     return {
         "valid": True,
+        "release_ready": False,
+        "model_execution_ready": False,
         "root": str(release_root),
         "workflow_count": len(workflows),
         "capabilities": capabilities,
         "deferred": ["checkpoints", "training_data", "paper_test_sets"],
+        "blockers": [
+            "model-specific feature extraction adapters",
+            "model-specific sampler steps",
+            "Table 1 runner",
+            "SD3 and FLUX RG-OPD rollout/evaluation integration",
+        ],
     }

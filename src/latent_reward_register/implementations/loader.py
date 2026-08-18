@@ -7,7 +7,7 @@ import torch
 from torch import nn
 
 from latent_reward_register.checkpoint import read_legacy_checkpoint
-from latent_reward_register.types import RegisterCondition
+from latent_reward_register.types import RegisterCondition, RewardGradientOutput
 
 def _architecture_kwargs(config: dict[str, Any]) -> dict[str, Any]:
     register = config["reward_token"]
@@ -58,6 +58,33 @@ class CheckpointRewardRegister(nn.Module):
 
     def forward(self, latents: torch.Tensor, condition: RegisterCondition, timesteps: torch.Tensor):
         return self.score(latents, condition, timesteps)
+
+    def score_and_grad(
+        self,
+        latents: torch.Tensor,
+        condition: RegisterCondition,
+        timesteps: torch.Tensor,
+        *,
+        heads: tuple[str, ...] | None = None,
+    ) -> RewardGradientOutput:
+        requested = heads or self.head_names
+        unknown = set(requested).difference(self.head_names)
+        if unknown:
+            raise ValueError(f"Unknown reward heads: {sorted(unknown)}")
+        differentiable_latents = latents.detach().requires_grad_(True)
+        scores = self.score(differentiable_latents, condition, timesteps)
+        gradients = {}
+        for index, name in enumerate(requested):
+            gradients[name] = torch.autograd.grad(
+                scores[name].sum(),
+                differentiable_latents,
+                retain_graph=index + 1 < len(requested),
+                create_graph=False,
+            )[0].detach()
+        return RewardGradientOutput(
+            scores={name: scores[name].detach() for name in requested},
+            gradients=gradients,
+        )
 
 
 def load_legacy_register(

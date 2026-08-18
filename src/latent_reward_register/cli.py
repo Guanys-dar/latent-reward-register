@@ -73,6 +73,13 @@ def _add_workflow_command(subcommands, name: str, help_text: str) -> None:
     command.set_defaults(handler=_workflow_command)
 
 
+def _smoke_release(_: argparse.Namespace) -> int:
+    from .smoke import run_release_smoke
+
+    print(json.dumps(run_release_smoke(), indent=2, sort_keys=True))
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="lrr", description="Latent Reward Register research toolkit")
     parser.add_argument("--version", action="version", version="%(prog)s 0.1.0")
@@ -94,6 +101,8 @@ def build_parser() -> argparse.ArgumentParser:
     _add_workflow_command(subcommands, "train-register", "plan register training")
     _add_workflow_command(subcommands, "sample", "plan reward-guided sampling")
     _add_workflow_command(subcommands, "train-rgopd", "plan reward-guided OPD training")
+    smoke = subcommands.add_parser("smoke-release", help="exercise all core algorithms without external assets")
+    smoke.set_defaults(handler=_smoke_release)
     return parser
 
 

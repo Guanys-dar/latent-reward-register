@@ -10,19 +10,21 @@ readme = "README.md"
 requires-python = ">=3.10"
 license = {text = "Apache-2.0"}
 dependencies = [
+  "pyyaml>=6",
+  "safetensors>=0.4",
+  "torch>=2.4",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8", "ruff>=0.9"]
+models = [
   "accelerate>=0.31",
   "diffusers @ git+https://github.com/huggingface/diffusers.git@c8c84018e",
   "numpy>=1.26",
   "peft>=0.17",
   "pillow>=10",
-  "pyyaml>=6",
-  "safetensors>=0.4",
-  "torch>=2.4",
   "transformers>=4.41",
 ]
-
-[project.optional-dependencies]
-dev = ["pytest>=8", "ruff>=0.9"]
 tracking = ["swanlab", "wandb"]
 
 [project.scripts]
@@ -37,4 +39,3 @@ markers = ["gpu: requires a CUDA GPU and model weights"]
 
 [tool.ruff]
 line-length = 119
-

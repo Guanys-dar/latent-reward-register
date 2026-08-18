@@ -4,7 +4,13 @@ The shared RG-OPD math lives in:
 
 - `latent_reward_register.rgopd.build_rgopd_target`
 - `latent_reward_register.rgopd.rgopd_loss`
+- `latent_reward_register.rgopd.train_rgopd`
 - `latent_reward_register.guidance.RewardGradientGuidance`
+
+`train_rgopd` is an executable, model-agnostic optimization loop over
+`RGOPDBatch` values. A student implements the small `RGOPDStudent` protocol;
+the caller remains responsible for constructing reference transitions and
+reward gradients with the backbone-specific rollout implementation.
 
 Both paper presets use ten rollout steps, nine optimized steps, a frozen
 reference anchor, and a rank-32/alpha-64 LoRA student.
