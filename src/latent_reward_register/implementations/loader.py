@@ -43,18 +43,31 @@ class CheckpointRewardRegister(nn.Module):
         self.head_names = head_names
 
     def score(self, latents: torch.Tensor, condition: RegisterCondition, timesteps: torch.Tensor):
-        grouped_latents = latents.unsqueeze(1)
-        grouped_prompts = condition.prompt_embeds.unsqueeze(1)
-        kwargs = {
-            "prompt_embeds": grouped_prompts,
-            "timesteps": timesteps,
+        """Score one latent per prompt. Returns ``{head: (batch,)}``."""
+        return {
+            name: value.reshape(latents.shape[0])
+            for name, value in self.score_groups(latents.unsqueeze(1), condition, timesteps).items()
         }
+
+    def score_groups(
+        self, latents: torch.Tensor, condition: RegisterCondition, timesteps: torch.Tensor
+    ) -> dict[str, torch.Tensor]:
+        """Score ``(batch, group_size, ...)`` latents, returning ``{head: (batch, group_size)}``.
+
+        The model owns group flattening: it repeats each prompt across its group
+        internally, so conditioning is passed unexpanded. Expanding it here as
+        well would add a second group axis and fail.
+        """
+        if latents.ndim < 3:
+            raise ValueError(f"Expected (batch, group_size, ...) latents, got {tuple(latents.shape)}")
+        batch_size, group_size = latents.shape[:2]
+        kwargs = {"prompt_embeds": condition.prompt_embeds, "timesteps": timesteps}
         if self.backbone != "z-image":
             if condition.pooled_prompt_embeds is None:
                 raise ValueError(f"{self.backbone} requires pooled prompt embeddings")
-            kwargs["pooled_prompt_embeds"] = condition.pooled_prompt_embeds.unsqueeze(1)
-        scores = self.model(grouped_latents, **kwargs)
-        return {name: value.reshape(latents.shape[0]) for name, value in scores.items()}
+            kwargs["pooled_prompt_embeds"] = condition.pooled_prompt_embeds
+        scores = self.model(latents, **kwargs)
+        return {name: value.reshape(batch_size, group_size) for name, value in scores.items()}
 
     def forward(self, latents: torch.Tensor, condition: RegisterCondition, timesteps: torch.Tensor):
         return self.score(latents, condition, timesteps)

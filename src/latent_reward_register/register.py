@@ -96,6 +96,11 @@ class RewardRegister(nn.Module):
         scores = self.score(flat_latents, condition.expand_groups(group_size), flat_sigma)
         return {name: value.reshape(batch_size, group_size) for name, value in scores.items()}
 
+    # NOTE: CheckpointRewardRegister overrides score_groups. The research models
+    # flatten groups and repeat conditioning internally, so that path must pass
+    # conditioning unexpanded; this adapter-backed path expands it explicitly
+    # because BackboneAdapter.extract_features scores one item at a time.
+
     def score_and_grad(
         self,
         latents: torch.Tensor,
