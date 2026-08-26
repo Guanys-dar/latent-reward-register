@@ -7,11 +7,15 @@ from .implementations import (
 )
 from .preference import PreferenceMetrics, PreferencePairBatch, evaluate_preference_pairs
 from .register import RewardRegister, RewardRegisterConfig
+from .rollout import RolloutConfig, RolloutTrace, train_rgopd_rollout
 from .rgopd import RGOPDBatch, RGOPDTrainConfig, RGOPDTrainMetrics, train_rgopd
 
 __all__ = [
     "CheckpointManifest",
     "CheckpointRewardRegister",
+    "RolloutConfig",
+    "RolloutTrace",
+    "train_rgopd_rollout",
     "latent_gradient_enabled",
     "GuidanceSchedule",
     "PreferenceMetrics",
