@@ -16,4 +16,7 @@ The Z-Image register adapter is supported for training/scoring. Z-Image RGS is
 not advertised as a paper-supported release capability until its time/noise
 convention and final benchmark protocol are confirmed.
 
+Guidance needs `d reward / d latent`, which a frozen-trunk register does not
+expose by default. See `docs/latent-gradients.md`.
+
 Checkpoint and prompt paths are runtime inputs, not repository contents.

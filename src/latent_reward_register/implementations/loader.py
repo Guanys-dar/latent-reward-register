@@ -9,6 +9,8 @@ from torch import nn
 from latent_reward_register.checkpoint import read_legacy_checkpoint
 from latent_reward_register.types import RegisterCondition, RewardGradientOutput
 
+from .gradmode import latent_gradient_enabled
+
 def _architecture_kwargs(config: dict[str, Any]) -> dict[str, Any]:
     register = config["reward_token"]
     feature_layers = register.get("feature_layers", register.get("visual_layers"))
@@ -85,7 +87,11 @@ class CheckpointRewardRegister(nn.Module):
         if unknown:
             raise ValueError(f"Unknown reward heads: {sorted(unknown)}")
         differentiable_latents = latents.detach().requires_grad_(True)
-        scores = self.score(differentiable_latents, condition, timesteps)
+        # The trunk runs under no_grad on the training path, which detaches
+        # latents from the score. Enable grad recording so d reward / d latent
+        # exists; trunk weights stay frozen.
+        with latent_gradient_enabled():
+            scores = self.score(differentiable_latents, condition, timesteps)
         gradients = {}
         for index, name in enumerate(requested):
             gradients[name] = torch.autograd.grad(

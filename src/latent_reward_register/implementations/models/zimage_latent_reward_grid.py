@@ -25,6 +25,7 @@ from .. import zimage_common
 from .latent_reward_grid import LatentRewardGridHead, _SpatialPool2d
 from .reward_token_dina_head import _normalize_layer_indices
 from .zimage_backbone import ZImageRewardBackbone
+from ..gradmode import frozen_trunk_context
 
 
 def apply_rotary_emb(x_in: torch.Tensor, freqs_cis: torch.Tensor) -> torch.Tensor:
@@ -167,7 +168,7 @@ class ZImageLatentRewardGridPoolNoPEMultiHeadModel(nn.Module):
     def _run_frozen_zimage_block(self, block, x, freqs_cis, adaln_input, attn_mask=None):
         heads = block.attention.heads  # 30
         attn = block.attention
-        with torch.no_grad():
+        with frozen_trunk_context():
             mod = block.adaLN_modulation(adaln_input)  # [B, 4*dim]
             scale_msa, gate_msa, scale_mlp, gate_mlp = mod.unsqueeze(1).chunk(4, dim=2)
             gate_msa, gate_mlp = gate_msa.tanh(), gate_mlp.tanh()

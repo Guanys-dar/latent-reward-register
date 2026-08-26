@@ -38,6 +38,7 @@ from diffusers.models.embeddings import apply_rotary_emb
 from .flux_backbone import FluxRewardBackbone
 from .latent_reward_grid import LatentRewardGridHead, _SpatialPool2d
 from .reward_token_dina_head import _normalize_layer_indices
+from ..gradmode import frozen_trunk_context
 
 
 def run_flux_double_block(block, img, txt, temb, rotary):
@@ -245,14 +246,18 @@ class FluxLatentRewardGridPoolNoPEMultiHeadModel(nn.Module):
     # ------------------------------------------------------------------
     @staticmethod
     def _run_frozen_flux_double_block(block, img, txt, temb, rotary):
-        """no_grad wrapper over the module-level ``run_flux_double_block`` (training path)."""
-        with torch.no_grad():
+        """Frozen-trunk wrapper over ``run_flux_double_block``.
+
+        Grad-recording is off unless the caller opts in via
+        ``latent_gradient_enabled()``; trunk weights stay frozen either way.
+        """
+        with frozen_trunk_context():
             return run_flux_double_block(block, img, txt, temb, rotary)
 
     @staticmethod
     def _run_frozen_flux_single_block(block, img, txt, temb, rotary):
-        """no_grad wrapper over the module-level ``run_flux_single_block`` (training path)."""
-        with torch.no_grad():
+        """Frozen-trunk wrapper over ``run_flux_single_block``. See the double-block note."""
+        with frozen_trunk_context():
             return run_flux_single_block(block, img, txt, temb, rotary)
 
     # ------------------------------------------------------------------

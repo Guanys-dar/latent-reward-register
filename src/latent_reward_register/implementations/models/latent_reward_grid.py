@@ -13,6 +13,7 @@ from .reward_token_dina_head import (
     _FiLMLayerAdapter,
     _normalize_layer_indices,
 )
+from ..gradmode import frozen_trunk_context
 
 
 def _reshape_heads(hidden_states: torch.Tensor, heads: int) -> torch.Tensor:
@@ -616,6 +617,7 @@ class SD3LatentRewardGridModel(nn.Module):
         if pe_mod.pos_embed_max_size is None:
             return torch.randn(1, self.reward_grid_h * self.reward_grid_w, hidden_size) * 0.02
 
+        # Slicing a constant positional-embedding table: never on the latent path.
         with torch.no_grad():
             max_size = pe_mod.pos_embed_max_size
             full_pe = pe_mod.pos_embed.float().reshape(1, max_size, max_size, -1)
@@ -667,7 +669,7 @@ class SD3LatentRewardGridModel(nn.Module):
 
         heads = block.attn.heads
 
-        with torch.no_grad():
+        with frozen_trunk_context():
             norm_hidden_states, gate_msa, shift_mlp, scale_mlp, gate_mlp = block.norm1(
                 hidden_states, emb=temb
             )
