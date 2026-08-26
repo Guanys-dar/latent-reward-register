@@ -8,17 +8,25 @@ import torch
 from torch.optim import AdamW
 
 from .checkpoint import CheckpointManifest, save_register_checkpoint
-from .losses import multihead_pairwise_loss
+from .losses import multihead_group_loss
 from .register import RewardRegister
 from .types import RegisterCondition
 
 
 @dataclass
-class PairBatch:
-    preferred_latents: torch.Tensor
-    rejected_latents: torch.Tensor
+class GroupBatch:
+    """One batch of prompt groups.
+
+    ``latents`` is ``(batch, group_size, ...)`` and ``targets`` maps each head
+    to its ``(batch, group_size)`` teacher scores. Groups are the unit of the
+    loss, so the group dimension must survive into the objective.
+    """
+
+    latents: torch.Tensor
     condition: RegisterCondition
     sigma: torch.Tensor
+    targets: dict[str, torch.Tensor]
+    group_mask: torch.Tensor | None = None
 
 
 @dataclass(frozen=True)
@@ -28,6 +36,7 @@ class TrainConfig:
     max_grad_norm: float = 1.0
     epochs: int = 3
     ema_decay: float = 0.999
+    min_target_gap: float = 0.0
 
 
 class EMA:
@@ -44,7 +53,7 @@ class EMA:
 def train_register(
     *,
     model: RewardRegister,
-    batches: Iterable[PairBatch],
+    batches: Iterable[GroupBatch],
     config: TrainConfig,
     output_dir: str | Path,
     manifest: CheckpointManifest,
@@ -56,9 +65,15 @@ def train_register(
     model.train()
     for _ in range(config.epochs):
         for batch in batches:
-            preferred = model.score(batch.preferred_latents, batch.condition, batch.sigma)
-            rejected = model.score(batch.rejected_latents, batch.condition, batch.sigma)
-            loss, _ = multihead_pairwise_loss(preferred, rejected, batch.sigma, head_weights)
+            predictions = model.score_groups(batch.latents, batch.condition, batch.sigma)
+            loss, _ = multihead_group_loss(
+                {name: predictions[name] for name in batch.targets},
+                batch.targets,
+                sigmas=batch.sigma,
+                head_weights=head_weights,
+                group_mask=batch.group_mask,
+                min_target_gap=config.min_target_gap,
+            )
             optimizer.zero_grad(set_to_none=True)
             loss.backward()
             torch.nn.utils.clip_grad_norm_(trainable, config.max_grad_norm)

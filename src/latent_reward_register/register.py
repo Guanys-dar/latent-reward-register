@@ -74,6 +74,28 @@ class RewardRegister(nn.Module):
     def score(self, latents: torch.Tensor, condition: RegisterCondition, sigma: torch.Tensor) -> Mapping[str, torch.Tensor]:
         return self(latents, condition, sigma).scores
 
+    def score_groups(
+        self, latents: torch.Tensor, condition: RegisterCondition, sigma: torch.Tensor
+    ) -> Mapping[str, torch.Tensor]:
+        """Score ``(batch, group_size, ...)`` latents, keeping the group dimension.
+
+        The group dimension is folded into the batch for the backbone pass and
+        restored afterwards, so the pairwise loss can compare within groups.
+        """
+        if latents.ndim < 3:
+            raise ValueError(f"Expected (batch, group_size, ...) latents, got {tuple(latents.shape)}")
+        batch_size, group_size = latents.shape[:2]
+        flat_latents = latents.reshape(batch_size * group_size, *latents.shape[2:])
+        flat_sigma = sigma.reshape(-1)
+        if flat_sigma.numel() == batch_size:
+            flat_sigma = flat_sigma.repeat_interleave(group_size)
+        elif flat_sigma.numel() != batch_size * group_size:
+            raise ValueError(
+                f"sigma must hold one value per group or per item, got {tuple(sigma.shape)}"
+            )
+        scores = self.score(flat_latents, condition.expand_groups(group_size), flat_sigma)
+        return {name: value.reshape(batch_size, group_size) for name, value in scores.items()}
+
     def score_and_grad(
         self,
         latents: torch.Tensor,

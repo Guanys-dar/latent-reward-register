@@ -24,7 +24,7 @@ required to install or validate the package.
 
 ## Python seam
 
-- `latent_reward_register.training.PairBatch`
+- `latent_reward_register.training.GroupBatch`
 - `latent_reward_register.training.TrainConfig`
 - `latent_reward_register.training.train_register`
 - `latent_reward_register.data.read_group_manifest`

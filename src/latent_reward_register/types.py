@@ -13,6 +13,27 @@ class RegisterCondition:
     attention_mask: torch.Tensor | None = None
     metadata: Mapping[str, Any] = field(default_factory=dict)
 
+    def expand_groups(self, group_size: int) -> "RegisterCondition":
+        """Repeat each prompt ``group_size`` times to match flattened group latents.
+
+        One prompt conditions every image in its group, so the conditioning is
+        repeated rather than reshaped.
+        """
+        if group_size < 1:
+            raise ValueError(f"group_size must be positive, got {group_size}")
+        if group_size == 1:
+            return self
+
+        def _expand(value: torch.Tensor | None) -> torch.Tensor | None:
+            return None if value is None else value.repeat_interleave(group_size, dim=0)
+
+        return RegisterCondition(
+            prompt_embeds=_expand(self.prompt_embeds),
+            pooled_prompt_embeds=_expand(self.pooled_prompt_embeds),
+            attention_mask=_expand(self.attention_mask),
+            metadata=self.metadata,
+        )
+
 
 @dataclass(frozen=True)
 class RegisterOutput:

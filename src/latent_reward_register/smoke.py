@@ -11,7 +11,7 @@ from .preference import PreferencePairBatch, evaluate_preference_pairs
 from .register import RewardRegister, RewardRegisterConfig
 from .rgopd import RGOPDBatch, RGOPDTrainConfig, train_rgopd
 from .sampling import reward_guided_sample
-from .training import PairBatch, TrainConfig, train_register
+from .training import GroupBatch, TrainConfig, train_register
 from .types import RegisterCondition
 
 
@@ -59,17 +59,19 @@ def run_release_smoke() -> dict[str, str]:
     register = _register()
     condition = RegisterCondition(prompt_embeds=torch.zeros(2, 1, 1))
     sigma = torch.ones(2)
-    pair_batch = PairBatch(
-        preferred_latents=torch.ones(2, 1, 2, 2),
-        rejected_latents=torch.zeros(2, 1, 2, 2),
+    # Two prompt groups of two images each: the preferred item scores higher.
+    group_latents = torch.stack([torch.ones(2, 1, 2, 2), torch.zeros(2, 1, 2, 2)], dim=1)
+    group_batch = GroupBatch(
+        latents=group_latents,
         condition=condition,
         sigma=sigma,
+        targets={"preference": torch.tensor([[1.0, -1.0], [1.0, -1.0]])},
     )
     manifest = CheckpointManifest(1, "synthetic", "test", "synthetic", ("preference",), (0,), "sigma")
     with TemporaryDirectory() as output_dir:
         train_register(
             model=register,
-            batches=[pair_batch],
+            batches=[group_batch],
             config=TrainConfig(epochs=1),
             output_dir=output_dir,
             manifest=manifest,
@@ -79,8 +81,8 @@ def run_release_smoke() -> dict[str, str]:
         register,
         [
             PreferencePairBatch(
-                first_latents=pair_batch.preferred_latents,
-                second_latents=pair_batch.rejected_latents,
+                first_latents=group_latents[:, 0],
+                second_latents=group_latents[:, 1],
                 preferred=torch.zeros(2, dtype=torch.long),
                 condition=condition,
                 sigma=sigma,
