@@ -1,37 +1,64 @@
 # Reward-guided OPD
 
-The shared RG-OPD math lives in:
+RG-OPD distills a reward-guided sampler into a LoRA student. The student learns
+to take, in one step, the step that the reward-guided teacher takes.
 
-- `latent_reward_register.rgopd.build_rgopd_target`
-- `latent_reward_register.rgopd.rgopd_loss`
-- `latent_reward_register.rgopd.train_rgopd`
-- `latent_reward_register.guidance.RewardGradientGuidance`
+## The shared teacher
 
-`train_rgopd` is an executable, model-agnostic optimization loop over
-`RGOPDBatch` values. A student implements the small `RGOPDStudent` protocol;
-the caller remains responsible for constructing reference transitions and
-reward gradients with the backbone-specific rollout implementation.
+`latent_reward_register.teacher.RewardGradientTeacher` produces the guided
+next-state consumed by both RGS and RG-OPD:
 
-Both paper presets use ten rollout steps, nine optimized steps, a frozen
-reference anchor, and a rank-32/alpha-64 LoRA student.
+    guided_next = base_next + reward_delta
 
-## SD3
+where `reward_delta` points along `d reward / d latent`, unit-RMS normalized per
+head, and is magnitude-matched to `scale * RMS(base_next - latents)` before
+clipping. `scale` comes from the sigma-banded guidance schedule.
 
-The package-level RG-OPD seam is configured by
-`configs/rgopd/sd3/paper.yaml`. The original SD3 trainer remains provenance
-material; its migration should call the shared target/loss functions rather
-than duplicate their equations.
+This is one implementation on purpose. If RG-OPD recomputed the correction
+itself, the student could be trained against guidance the sampler does not
+apply, and the two would drift silently.
 
-## FLUX
+`rollout_target` is the RG-OPD entry point:
 
-The canonical FLUX implementation is the dedicated node5 provenance stack:
+```python
+step = rollout_target(
+    teacher=teacher,
+    latents=latents,
+    reference_next=reference_next,   # frozen reference transition
+    condition=condition,
+    timesteps=timesteps,
+    sigma=sigma,
+)
+loss = rgopd_loss(student_next, step.guided_next, transition_std)
+```
 
-- `node5/src/scripts/train_flux_rgopd.py`
-- `node5/src/configs/rgopd_flux.py`
-- `node5/src/flux_opd/`
+## Cost
 
-The release package records this provenance without copying its checkpoints,
-logs, or training data. The unified-v3 HPS `rt0.80 sigma>0.2 e150` run is the
-current canonical experiment reference. The node5 source still needs to be
-ported behind the release package's RG-OPD seam before asset-backed execution
-is enabled.
+Steps where the schedule resolves to zero skip the register forward and
+backward entirely: `teacher.is_active(sigma)` reports this, and
+`guided_step` returns the base step untouched. For an early-only schedule that
+is most of the trajectory, which is where the reported efficiency comes from.
+
+The register backward needs the latent-gradient path; see
+`docs/latent-gradients.md`.
+
+## Presets
+
+Both backbones roll out ten steps and optimize the first nine, against a frozen
+reference anchor, with a rank-32 / alpha-64 LoRA student.
+
+| Backbone | Config | Reward scale | Teacher register |
+| --- | --- | --- | --- |
+| SD3 | `configs/rgopd/sd3/paper.yaml` | 0.40 | exp11 EMA |
+| FLUX | `configs/rgopd/flux/paper.yaml` | 0.80 | unified-v3 EMA final |
+
+Guidance is active for sigma above 0.2 in both presets. Note the teacher
+registers differ per backbone: the FLUX config carries exp11 as a legacy
+default and overrides it, so the default alone is misleading. See
+`docs/source-provenance.md`.
+
+## What remains
+
+The rollout driver - constructing reference transitions from a real sampler and
+stepping a LoRA student across a trajectory - is not yet in the release. The
+target, loss, teacher, and schedule are, and are covered by tests.

@@ -6,6 +6,8 @@ from typing import Iterable, Protocol
 import torch
 
 from .guidance import RewardGradientGuidance
+from .teacher import RewardGradientTeacher, TeacherStep
+from .types import RegisterCondition
 
 
 @dataclass(frozen=True)
@@ -61,6 +63,30 @@ def build_rgopd_target(
         scale=reward_scale,
     )
     return RGOPDTarget(target=(reference_next + reward_delta).detach(), reward_delta=reward_delta.detach())
+
+
+def rollout_target(
+    *,
+    teacher: RewardGradientTeacher,
+    latents: torch.Tensor,
+    reference_next: torch.Tensor,
+    condition: RegisterCondition,
+    timesteps: torch.Tensor,
+    sigma: float,
+) -> TeacherStep:
+    """Regression target for one rollout step, via the shared teacher.
+
+    Using the teacher rather than recomputing the correction here is what keeps
+    the distilled student aligned with the guidance the sampler actually
+    applies: one implementation, so the two cannot drift.
+    """
+    return teacher.guided_step(
+        latents=latents,
+        base_next=reference_next,
+        condition=condition,
+        timesteps=timesteps,
+        sigma=sigma,
+    )
 
 
 def rgopd_loss(student_next: torch.Tensor, target: torch.Tensor, transition_std: torch.Tensor | float) -> torch.Tensor:
