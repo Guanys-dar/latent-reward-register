@@ -300,7 +300,7 @@ frozen afterwards.
 The positional-embedding helper keeps its `no_grad`: it slices a constant table
 and is not on the latent path.
 
-### 4.2 SD3 RG-OPD — teacher done, rollout driver remains
+### 4.2 SD3 RG-OPD — teacher and rollout driver DONE
 The reward-gradient teacher is ported: `teacher.py` provides
 `RewardGradientTeacher`, and `rgopd.rollout_target` is the RG-OPD entry point.
 Verified that `rollout_target` and `build_rgopd_target` produce identical
@@ -311,27 +311,37 @@ backend by absolute file path from a sibling repo
 (`DEFAULT_LRM_BACKEND_PATH`), and carried a second copy of the guidance
 correction. Both are gone.
 
-Still missing: the **rollout driver** — constructing reference transitions from
-a real sampler and stepping a LoRA student across a ten-step trajectory. That is
-the remaining gap for `configs/rgopd/*/paper.yaml` to be executable, and it also
-needs the SD3 run choice in §3.2.
+The rollout driver is in `rollout.py`: `train_rgopd_rollout` walks the
+student's own trajectory, labels each visited state via the teacher, and
+regresses. Two properties are pinned by tests — the trajectory is on-policy
+(changing the student changes visited states), and schedule-off steps skip the
+register backward (the register is called exactly as often as the schedule
+allows).
 
-Also not ported: `eval_table3/` (belongs with §4.7).
+`flowmatch.py` supplies the transitions: `make_reference_step` for the frozen
+anchor, `make_student_policy` for the differentiable student. An end-to-end test
+composes flowmatch + teacher + rollout on CPU.
 
-### 4.3 RGS — loop done, backbone sampler step remains
+Remaining for an actual paper run: a LoRA-wrapped backbone velocity model (the
+release takes the velocity model as a callable, so this is integration rather
+than new algorithm work), and the SD3 run choice in §3.2.
+
+Not ported: `eval_table3/` (belongs with §4.7).
+
+### 4.3 RGS — loop and sampler step DONE
 `reward_guided_sample` now runs through the shared teacher, takes an explicit
 `reference_step`, and reports a `SamplingTrace` with the guided-step fraction
 (the cost claim in the efficiency table, now measured rather than asserted).
 
-Still missing: the **backbone sampler step** for SD3 and FLUX — the frozen
-FlowMatch Euler transition that `reference_step` needs. The research version
-lives inside `sd3_pipeline_with_rt_guidance.py` (3364 lines) in the `flow_grpo`
-fork, entangled with `pipeline_with_fk_search`, the CFG-direction diagnostic,
-and ~30 loaders whose absolute paths are most of the leak surface. Extract the
-Euler step and the register-backed CFG forward; do not ship the fork (19 GB, and
-the first-party delta is 3 modified files, +145/-10).
+The Euler transition is extracted into `flowmatch.py` as arithmetic over a
+caller-supplied velocity model, verified bit-exact against the research update.
+Nothing from the 19 GB `flow_grpo` fork is shipped, and none of its ~30
+absolute-path loaders came along.
 
-Per §3.3 this covers both SD3 and FLUX, since Table 3 compares both.
+Remaining for an actual paper run: the backbone CFG velocity model for SD3 and
+FLUX — one function returning the guided flow velocity, which
+`classifier_free_velocity` composes. Per §3.3 both backbones are in scope since
+Table 3 compares them.
 
 ### 4.4 Runnable commands and a smoke mode — partly done
 `lrr build-register` is in: it constructs a register from a config against real
