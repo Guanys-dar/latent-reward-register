@@ -4,6 +4,9 @@ rollout_steps: 10
 optimized_steps: 9
 student: {adaptation: lora, rank: 32, alpha: 64}
 reward_heads: [preference]
+# Teacher register: exp11 EMA (SD3). RG-OPD was run against the exp11 register,
+# not the later exp15/exp16 variants.
+teacher_register: exp11_ema
 reward_scale: 0.40
 active_sigma_min: 0.2
 anchor: frozen_reference

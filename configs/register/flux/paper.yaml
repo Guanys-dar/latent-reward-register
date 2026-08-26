@@ -5,8 +5,16 @@ backbone:
   revision: c8c84018e
   embedded_guidance_scale: 3.5
 register:
+  # Two heads only (unified_v3): preference <- teacher_score_zscore (HPSv3),
+  # imagereward <- imagereward_score. Order must match score_keys.
   head_names: [preference, imagereward]
+  score_keys: [teacher_score_zscore, imagereward_score]
+  # Depth rule (1/6, 1/3, 1/2): FLUX 9/19/28 of 57 (19 double + 38 single).
+  # Tap 19 is the last double-stream block.
   feature_layers: [9, 19, 28]
+  text_layers: [9, 19, 28]
+  num_transformer_layers: 28
+  architecture: flux_latent_reward_grid_pool_nope_multihead
   num_register_tokens: 32
   num_attention_heads: 8
   pool_factor: 4

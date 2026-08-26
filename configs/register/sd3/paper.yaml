@@ -4,8 +4,20 @@ backbone:
   model_name_or_path: stabilityai/stable-diffusion-3-medium-diffusers
   revision: c8c84018e
 register:
-  head_names: [preference, imagereward]
+  # Order MUST match the manifest score keys: preference <- teacher_score_zscore
+  # (HPSv3), pickscore <- pickscore, imagereward <- imagereward_score. The loss
+  # aligns targets[:, h] with head_names[h], so a reordering silently mistrains.
+  # All three heads are trained jointly with equal weight (exp11); the paper
+  # reports preference and imagereward only.
+  head_names: [preference, pickscore, imagereward]
+  score_keys: [teacher_score_zscore, pickscore, imagereward_score]
+  # Layer taps follow one depth rule across backbones: 1/6, 1/3, 1/2 of depth,
+  # with the register stopping at half depth. SD3: 4/8/12 of 24.
   feature_layers: [4, 8, 12]
+  text_layers: [4, 8, 12]
+  num_transformer_layers: 12
+  architecture: latent_reward_grid_pool_nope_multihead
+  skip_attn2: true
   num_register_tokens: 32
   num_attention_heads: 8
   pool_factor: 4

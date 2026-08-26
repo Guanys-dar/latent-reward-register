@@ -27,7 +27,7 @@ required to install or validate the package.
 - `latent_reward_register.training.PairBatch`
 - `latent_reward_register.training.TrainConfig`
 - `latent_reward_register.training.train_register`
-- `latent_reward_register.data.read_manifest`
+- `latent_reward_register.data.read_group_manifest`
 - `latent_reward_register.checkpoint.save_register_checkpoint`
 
 The trainable model is expected to implement `RewardRegister.score`; the

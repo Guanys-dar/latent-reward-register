@@ -4,8 +4,15 @@ backbone:
   model_name_or_path: Tongyi-MAI/Z-Image-Turbo
   revision: c8c84018e
 register:
+  # Two heads only (unified_v3): preference <- teacher_score_zscore (HPSv3),
+  # imagereward <- imagereward_score. Order must match score_keys.
   head_names: [preference, imagereward]
+  score_keys: [teacher_score_zscore, imagereward_score]
+  # Depth rule (1/6, 1/3, 1/2): Z-Image 5/10/15 of 30.
   feature_layers: [5, 10, 15]
+  text_layers: [5, 10, 15]
+  num_transformer_layers: 15
+  architecture: zimage_latent_reward_grid_pool_nope_multihead
   num_register_tokens: 32
   num_attention_heads: 8
   pool_factor: 4

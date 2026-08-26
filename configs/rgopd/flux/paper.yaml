@@ -4,6 +4,10 @@ rollout_steps: 10
 optimized_steps: 9
 student: {adaptation: lora, rank: 32, alpha: 64}
 reward_heads: [preference]
+# Teacher register: unified_v3 EMA final (NOT exp11 -- the FLUX RG-OPD config
+# wires exp11 as a legacy default but overrides it to unified_v3 for the
+# shipped runs). Selection: argmax HPSv3 subject to CLIP-IQA >= 0.649.
+teacher_register: unified_v3_ema_final
 reward_scale: 0.80
 active_sigma_min: 0.2
 anchor: frozen_reference
