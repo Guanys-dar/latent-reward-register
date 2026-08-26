@@ -1,3 +1,9 @@
+"""SD3 reward backbone: frozen MMDiT front-end for the reward register.
+
+Ported from the research workspace; see docs/source-provenance.md. Kept
+checkpoint-faithful: the architecture must stay byte-compatible with the
+published checkpoints, so prefer provenance notes over refactoring here.
+"""
 from __future__ import annotations
 
 from copy import deepcopy

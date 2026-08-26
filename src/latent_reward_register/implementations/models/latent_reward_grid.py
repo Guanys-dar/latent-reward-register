@@ -1,3 +1,9 @@
+"""SD3 reward register (exp11 release baseline) and its ablation variants.
+
+Ported from the research workspace; see docs/source-provenance.md. Kept
+checkpoint-faithful: the architecture must stay byte-compatible with the
+published checkpoints, so prefer provenance notes over refactoring here.
+"""
 from __future__ import annotations
 
 from typing import Any, Iterable

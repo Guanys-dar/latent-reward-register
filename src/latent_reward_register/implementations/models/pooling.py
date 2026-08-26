@@ -1,3 +1,9 @@
+"""Pooling helpers shared by the reward register heads.
+
+Ported from the research workspace; see docs/source-provenance.md. Kept
+checkpoint-faithful: the architecture must stay byte-compatible with the
+published checkpoints, so prefer provenance notes over refactoring here.
+"""
 from __future__ import annotations
 
 import torch

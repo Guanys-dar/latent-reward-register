@@ -1,4 +1,23 @@
-This product includes research code derived from the source workspaces listed
-in docs/source-provenance.md and interoperates with Hugging Face diffusers.
-Third-party model weights and datasets are not distributed with this package.
+Latent Reward Registers
+Copyright 2026 Yuanshen Guan
 
+Licensed under the Apache License, Version 2.0. See LICENSE.
+
+This product includes research code consolidated from the author's experiment
+workspaces. Per-subsystem provenance is recorded in docs/source-provenance.md.
+
+Third-party dependencies and models
+-----------------------------------
+
+This package interoperates with, but does not distribute:
+
+- Hugging Face diffusers (Apache-2.0). The register implementations depend on
+  the internal attribute layout of the SD3/FLUX/Z-Image transformer blocks, so
+  the revision is pinned in pyproject.toml. Upgrading may change numerics.
+- Stable Diffusion 3 Medium, FLUX.1-dev, and Z-Image-Turbo model weights, each
+  subject to its own upstream license and access terms.
+- Teacher reward models used to produce training scores: HPSv3, PickScore v1,
+  and ImageReward, each under its own license.
+
+Model weights, datasets, and teacher checkpoints are not included in this
+repository and must be obtained from their respective sources.

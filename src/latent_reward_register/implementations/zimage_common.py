@@ -1,9 +1,9 @@
-"""Z-Image Integration Contract v1 (Node 4).
+"""Z-Image integration contract.
 
 Centralized pipeline load + VAE encode/decode + Qwen3 prompt-encode helpers used by
 the cache scripts, the reward-model scoring, and the reward-register backbone so that
-every code path shares one implementation. Byte-identical copy lives at
-``shared/contract/zimage_common_reference.py``.
+every code path shares one implementation. Single implementation shared by caching, scoring, and the reward register, so
+those paths cannot drift apart.
 """
 from __future__ import annotations
 
@@ -21,7 +21,7 @@ Z_IMAGE_PATH = os.environ.get("LRR_ZIMAGE_MODEL", "Tongyi-MAI/Z-Image-Turbo")
 VAE_SCALING = 0.3611
 VAE_SHIFT = 0.1159
 SCHEDULER_SHIFT = 6.0
-CAP_MAX_LEN = 512  # fixed caption length for the reward stack (see NODE4 report §5.2)
+CAP_MAX_LEN = 512  # fixed caption length for the reward stack (fixed by the reward stack)
 T_SCALE = 1000.0  # transformer.config.t_scale
 
 
@@ -106,7 +106,7 @@ def encode_prompt_qwen3(
     Applies the Qwen chat template (add_generation_prompt=True, enable_thinking=True),
     tokenizes with padding="max_length" to ``max_length``, and returns the FULL padded
     ``[B, max_length, 2560]`` hidden state (NOT trimmed by mask) plus the attention mask.
-    See NODE4 report §5.2 for the fixed-length caching decision.
+    Caption length is fixed so cached prompt embeddings stay interchangeable.
     """
     if isinstance(prompts, str):
         prompts = [prompts]

@@ -1,4 +1,4 @@
-"""FLUX.1-dev Integration Contract v1 (Node 4).
+"""FLUX.1-dev integration contract.
 
 Centralized pipeline/component loading + VAE encode/decode + T5/CLIP prompt-encode
 helpers shared by the cache scripts, the reward-register backbone, and the eval stack,
