@@ -266,7 +266,7 @@ ported code) and `backbones/` (the interface) do not reference each other, so
 no code path reaches the working model. This is the whole distance between
 "imports cleanly" and "runs a model". Depends on nothing — ready to start.
 
-### 4.1b Recover the input-latent gradient (blocks RGS and RG-OPD)
+### 4.1b Recover the input-latent gradient — DONE
 `score_and_grad` against real SD3 weights fails with:
 
     RuntimeError: One of the differentiated Tensors appears to not have been
@@ -286,14 +286,19 @@ The research code solves it explicitly, and the comment at
 Weights stay frozen through `requires_grad_(False)`; only the input-latent
 gradient is recovered. Nothing about the checkpoint or training code changes.
 
-The release must carry an equivalent grad-enabled path. Prefer a documented
-scoring mode over a monkey-patch now that the code is being published: same
-math, but discoverable. Until this lands, `score_and_grad` works only for
-models whose head reads layer-0 inputs (`head_input_tokens: true`, exp13/exp14),
-not for the exp11 release baseline.
+**Done.** Implemented as `latent_gradient_enabled()` in
+`implementations/gradmode.py`: the block bodies consult a thread-local mode
+instead of hardcoding `torch.no_grad()`, and `score_and_grad` enables it
+internally. Same math as the research monkey-patch, but discoverable, uniform
+across SD3/FLUX/Z-Image, and reversible. Documented in
+`docs/latent-gradients.md`.
 
-Note this also means a CPU test can verify the equations but never this path,
-which is how it stayed hidden.
+Verified against real SD3 weights at 1024x1024: gradient shape
+`(1, 16, 128, 128)`, finite, nonzero, RMS 2.7e+02, and the trunk still fully
+frozen afterwards.
+
+The positional-embedding helper keeps its `no_grad`: it slices a constant table
+and is not on the latent path.
 
 ### 4.2 Bring in SD3 RG-OPD
 `rt-gradient-opd/RG-OPD`: `scripts/train_sd3_rgopd.py` (1167 lines),
