@@ -22,6 +22,27 @@ The current release deliberately leaves the dataset manifest and output
 directory as command inputs. No internal cache, image store, or checkpoint is
 required to install or validate the package.
 
+## Building a register against real weights
+
+Config validation and `--dry-run` never construct a model, so they cannot catch
+a config key the model does not accept or a shape error in the group plumbing.
+This command does, and it is the cheapest check that the model path works:
+
+```bash
+lrr build-register --config configs/register/sd3/paper.yaml \
+    --model-path /path/to/stable-diffusion-3-medium-diffusers \
+    --precision fp32 --local-files-only
+```
+
+It reports the model class, heads, and trainable/total parameter counts. For
+SD3 the trainable count is 147,599,619, matching the exp11 training log; a
+different number means the architecture has drifted from the paper baseline.
+
+`vis_h`/`vis_w` are token counts, not pixels. The pooling layer asserts
+`vis_h * vis_w` tokens, so the latent spatial size must match the configured
+grid (SD3: 1024x1024 pixels gives a 128x128 latent and 64x64 tokens). A smaller
+input raises rather than silently rescaling.
+
 ## Python seam
 
 - `latent_reward_register.training.GroupBatch`

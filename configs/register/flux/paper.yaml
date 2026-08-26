@@ -20,6 +20,9 @@ register:
   num_reward_tokens: 32
   num_attn_heads: 8
   pool_factor: 4
+  # Visual snapshot grid in TOKENS, not pixels (1024x1024).
+  # The pooling layer asserts vis_h*vis_w tokens, so latent spatial size
+  # must match: a smaller input fails rather than silently rescaling.
   vis_h: 64
   vis_w: 64
   width: -1

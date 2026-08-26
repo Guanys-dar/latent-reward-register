@@ -73,6 +73,44 @@ def _add_workflow_command(subcommands, name: str, help_text: str) -> None:
     command.set_defaults(handler=_workflow_command)
 
 
+def _build_register(args: argparse.Namespace) -> int:
+    """Construct a register from a config against real weights.
+
+    This is the cheapest command that exercises the model path. Config
+    validation and --dry-run cannot catch a config key the model does not
+    accept, or a shape error in the group plumbing; this can.
+    """
+    import torch
+
+    from .backbones import build_register_from_config
+
+    config = load_config(args.config)
+    if args.model_path:
+        config.setdefault("backbone", {})["model_name_or_path"] = args.model_path
+    dtype = {"bf16": torch.bfloat16, "fp16": torch.float16, "fp32": torch.float32}[args.precision]
+
+    register = build_register_from_config(
+        config, dtype=dtype, local_files_only=args.local_files_only
+    )
+    trainable = sum(p.numel() for p in register.parameters() if p.requires_grad)
+    total = sum(p.numel() for p in register.parameters())
+    print(
+        json.dumps(
+            {
+                "config": args.config,
+                "model": type(register.model).__name__,
+                "backbone": register.backbone,
+                "head_names": list(register.head_names),
+                "trainable_parameters": trainable,
+                "total_parameters": total,
+            },
+            indent=2,
+            sort_keys=True,
+        )
+    )
+    return 0
+
+
 def _smoke_release(_: argparse.Namespace) -> int:
     from .smoke import run_release_smoke
 
@@ -101,6 +139,14 @@ def build_parser() -> argparse.ArgumentParser:
     _add_workflow_command(subcommands, "train-register", "plan register training")
     _add_workflow_command(subcommands, "sample", "plan reward-guided sampling")
     _add_workflow_command(subcommands, "train-rgopd", "plan reward-guided OPD training")
+    build = subcommands.add_parser(
+        "build-register", help="construct a register from a config against real model weights"
+    )
+    build.add_argument("--config", required=True)
+    build.add_argument("--model-path", help="local snapshot; overrides backbone.model_name_or_path")
+    build.add_argument("--precision", choices=("bf16", "fp16", "fp32"), default="bf16")
+    build.add_argument("--local-files-only", action="store_true")
+    build.set_defaults(handler=_build_register)
     smoke = subcommands.add_parser("smoke-release", help="exercise all core algorithms without external assets")
     smoke.set_defaults(handler=_smoke_release)
     return parser
