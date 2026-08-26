@@ -176,6 +176,16 @@ log (`logs/exp11_resume_e3.log`). The wired architecture therefore matches the
 one that produced the paper numbers, not merely something that constructs.
 Backbone stays frozen: 147.6M trainable of 2175.9M total.
 
+A real forward pass then exposed a second defect that no CPU test could reach:
+`CheckpointRewardRegister.score` added a group axis to `prompt_embeds`, and the
+research model's `_flatten_inputs` added another, so any real call raised. The
+models own group flattening and repeat conditioning internally. Fixed, with
+regression tests that fail if the extra axis returns.
+
+Verified against SD3 weights: `score_groups` returns
+`{preference, pickscore, imagereward}` each shaped `(batch, group_size)`, and
+the restored group loss computes over those real scores.
+
 ### 2.6 Group loss restored
 See the commit body; verified bit-exact against the research implementation.
 
