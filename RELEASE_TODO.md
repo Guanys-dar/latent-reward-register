@@ -258,7 +258,7 @@ Recorded as superseded by exp11 — confirm the paper text gets corrected.
 
 Ordered by impact.
 
-### 4.1 Wire the backbone adapters — the critical gap
+### 4.1 Wire the backbone adapters — DONE
 `backbones/diffusers.py` reads `feature_extractor` and `sampler_step` via
 `getattr`, and **nothing ever assigns them**, so `extract_features` and
 `reference_step` raise for all three backbones. `implementations/` (the real
@@ -300,30 +300,51 @@ frozen afterwards.
 The positional-embedding helper keeps its `no_grad`: it slices a constant table
 and is not on the latent path.
 
-### 4.2 Bring in SD3 RG-OPD
-`rt-gradient-opd/RG-OPD`: `scripts/train_sd3_rgopd.py` (1167 lines),
-`rg_opd/` (531 lines), `eval_table3/`. Should call the shared
-`build_rgopd_target` / `rgopd_loss` rather than duplicating the equations.
-Depends on §3.2.
+### 4.2 SD3 RG-OPD — teacher done, rollout driver remains
+The reward-gradient teacher is ported: `teacher.py` provides
+`RewardGradientTeacher`, and `rgopd.rollout_target` is the RG-OPD entry point.
+Verified that `rollout_target` and `build_rgopd_target` produce identical
+targets, so the student trains against exactly the guidance the sampler applies.
 
-### 4.3 Extract the RGS implementation
-`sd3_pipeline_with_rt_guidance.py` (3364 lines) and `lrm_reward_backend.py`
-(1902 lines) from the `flow_grpo` fork. Do **not** ship the fork: it is 19 GB
-and the first-party delta is 3 modified files (+145/−10). Drop the ~30
-pavrm/dina/sd15/sdxl loaders, which are most of the absolute-path surface.
-Depends on §3.1 and §3.3.
+Deliberately not ported verbatim: the research teacher loaded its register
+backend by absolute file path from a sibling repo
+(`DEFAULT_LRM_BACKEND_PATH`), and carried a second copy of the guidance
+correction. Both are gone.
 
-### 4.4 Runnable commands and a smoke mode
-Every config needs one real command, plus a few-minute `--smoke` path.
-`lrr smoke-release` currently exercises a synthetic 4-dim adapter: it shows the
-math is wired, not that any model runs. Reviewers will run the smoke path and
-little else.
+Still missing: the **rollout driver** — constructing reference transitions from
+a real sampler and stepping a LoRA student across a ten-step trajectory. That is
+the remaining gap for `configs/rgopd/*/paper.yaml` to be executable, and it also
+needs the SD3 run choice in §3.2.
 
-### 4.5 Restore the group loss
-`thurstone_pairwise_loss` compares a single pair. The real
-`dina_thurstone_loss` does all within-group pairs with `group_mask`,
-`min_target_gap` filtering, and per-group normalization. The data layer is
-already group-shaped; the loss has not caught up.
+Also not ported: `eval_table3/` (belongs with §4.7).
+
+### 4.3 RGS — loop done, backbone sampler step remains
+`reward_guided_sample` now runs through the shared teacher, takes an explicit
+`reference_step`, and reports a `SamplingTrace` with the guided-step fraction
+(the cost claim in the efficiency table, now measured rather than asserted).
+
+Still missing: the **backbone sampler step** for SD3 and FLUX — the frozen
+FlowMatch Euler transition that `reference_step` needs. The research version
+lives inside `sd3_pipeline_with_rt_guidance.py` (3364 lines) in the `flow_grpo`
+fork, entangled with `pipeline_with_fk_search`, the CFG-direction diagnostic,
+and ~30 loaders whose absolute paths are most of the leak surface. Extract the
+Euler step and the register-backed CFG forward; do not ship the fork (19 GB, and
+the first-party delta is 3 modified files, +145/-10).
+
+Per §3.3 this covers both SD3 and FLUX, since Table 3 compares both.
+
+### 4.4 Runnable commands and a smoke mode — partly done
+`lrr build-register` is in: it constructs a register from a config against real
+weights and reports the trainable parameter count, which is the check that
+caught both the invented config keys and the doubled group axis.
+
+Still missing: a real `train-register` / `sample` / `train-rgopd` execution path
+(each still refuses without `--dry-run`), which depends on §4.2 and §4.3, and a
+few-minute reduced-scale mode for reviewers.
+
+### 4.5 Restore the group loss — DONE
+Ported and verified bit-exact against the research implementation across batch
+sizes, group sizes, masking, and `min_target_gap`.
 
 ### 4.6 Third-party licensing
 `OneIG-Benchmark`, `self-refine-video`, and `T2I-CompBench` carry no license
@@ -337,7 +358,8 @@ No Table 1/2/3 runner exists, and no prompt lists are checked in. Export
 balanced500 (x2 seeds, 42/43) and keep800 from the source repos, with
 checksums and row counts.
 
-### 4.8 README rewrite
-The "Release status" section describes the pre-fix state. Must also state that
-Z-Image stops at register training and preference scoring: no downstream
-evaluation or RG-OPD consumes that register.
+### 4.8 README rewrite — DONE
+Rewritten around what the package does, including the gradient mode, the shared
+teacher, the three verification levels, and the Z-Image scope limit.
+`docs/reproduction.md` now leads with a per-result status table, and
+`docs/reward-guided-opd.md` and `docs/latent-gradients.md` are new.
