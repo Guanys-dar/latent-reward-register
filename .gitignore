@@ -9,3 +9,4 @@ dist/
 outputs/
 checkpoints/
 
+configs/local.yaml

@@ -1,0 +1,22 @@
+# Paths never exported to the public repository.
+# The export script treats this as authoritative; add rather than remember.
+
+# Internal working documents
+LRR_CODEBASE_SURVEY.md
+
+# Private launch configuration (real data roots, cluster paths)
+configs/local.yaml
+
+# Build and cache artifacts
+build/
+dist/
+*.egg-info/
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+
+# Assets that are distributed separately, never committed
+checkpoints/
+outputs/
+*.pt
+*.safetensors
