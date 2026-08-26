@@ -169,6 +169,13 @@ invented `num_register_tokens` and `num_attention_heads`, while the models take
 `num_reward_tokens` and `num_attn_heads`. All three configs now use the exp11
 key names verbatim and pass straight into the model constructors.
 
+Architecture parity check: the register built from
+`configs/register/sd3/paper.yaml` reports **147,599,619 trainable parameters**,
+which is exactly the `trainable_parameter_count` recorded in the exp11 training
+log (`logs/exp11_resume_e3.log`). The wired architecture therefore matches the
+one that produced the paper numbers, not merely something that constructs.
+Backbone stays frozen: 147.6M trainable of 2175.9M total.
+
 ### 2.6 Group loss restored
 See the commit body; verified bit-exact against the research implementation.
 
