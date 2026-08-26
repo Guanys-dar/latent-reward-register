@@ -13,9 +13,17 @@ register:
   text_layers: [5, 10, 15]
   num_transformer_layers: 15
   architecture: zimage_latent_reward_grid_pool_nope_multihead
-  num_register_tokens: 32
-  num_attention_heads: 8
+  head_hidden_factor: 2
+  layer_index_base: 1
+  num_reward_tokens: 32
+  num_attn_heads: 8
   pool_factor: 4
+  vis_h: 64
+  vis_w: 64
+  width: -1
+  dropout: 0.0
+  use_proj_in: false
+  use_self_attn: true
   noise_convention: native_t_equals_one_minus_sigma
 train:
   epochs: 3

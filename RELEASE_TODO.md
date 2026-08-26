@@ -152,6 +152,26 @@ production manifest: all parsed, all three heads resolved.
 Table 1: `all_table1_pairs_fixed.jsonl` (54170 pairs) is authoritative. The
 other file has identical labels but different image paths on 6399 pairs.
 
+### 2.5 Backbones wired to the real implementations
+`backbones/diffusers.py` declared three adapters whose `extract_features` and
+`reference_step` looked up `feature_extractor` / `sampler_step` attributes that
+were never assigned anywhere, so every call raised. The real models sat in
+`implementations/` with nothing referencing them.
+
+Those models are complete registers, not feature extractors, and already return
+`dict[head -> (batch, group_size)]`. They are now reached through
+`build_register` / `build_register_from_config` instead of being forced behind
+`BackboneAdapter`.
+
+Building from `configs/register/sd3/paper.yaml` against real weights surfaced a
+config/model mismatch that no dry-run could catch: the release configs had
+invented `num_register_tokens` and `num_attention_heads`, while the models take
+`num_reward_tokens` and `num_attn_heads`. All three configs now use the exp11
+key names verbatim and pass straight into the model constructors.
+
+### 2.6 Group loss restored
+See the commit body; verified bit-exact against the research implementation.
+
 ### 2.4 Hygiene and export
 - Scan widened from `src/` + `configs/` to the whole tree, plus internal
   identifier and credential checks. The old scan could not see the leaks in
