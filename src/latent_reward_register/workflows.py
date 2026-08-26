@@ -39,7 +39,7 @@ class WorkflowSpec:
         }
 
 
-def _implementation(task: str, backbone: str) -> dict[str, str]:
+def _implementation(task: str) -> dict[str, str]:
     if task == "train-register":
         return {
             "package": "latent_reward_register.training",
@@ -51,12 +51,6 @@ def _implementation(task: str, backbone: str) -> dict[str, str]:
             "package": "latent_reward_register.sampling",
             "entry_point": "latent_reward_register.cli sample",
             "workspace": "release-package",
-        }
-    if backbone == "flux":
-        return {
-            "package": "node5/src/flux_opd",
-            "entry_point": "node5/src/scripts/train_flux_rgopd.py",
-            "workspace": "node5",
         }
     return {
         "package": "latent_reward_register.rgopd",
@@ -120,7 +114,7 @@ def load_workflow(path: str | Path) -> WorkflowSpec:
         _validate_rgs(config)
     else:
         _validate_rgopd(config)
-    return WorkflowSpec(workflow_path, task, backbone, config, _implementation(task, backbone))
+    return WorkflowSpec(workflow_path, task, backbone, config, _implementation(task))
 
 
 def validate_release(root: str | Path) -> dict[str, Any]:

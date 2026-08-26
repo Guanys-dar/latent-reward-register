@@ -1,91 +1,136 @@
+"""Model-backed register builders for SD3, FLUX, and Z-Image.
+
+The research implementations under ``implementations/`` are complete reward
+registers: each owns its backbone traversal, latent packing, conditioning, and
+reward-token side stream, and returns ``dict[head -> (batch, group_size)]``.
+They are therefore wired as registers rather than as feature extractors behind
+``BackboneAdapter``.
+
+An earlier revision declared ``SD3Adapter``/``FluxAdapter``/``ZImageAdapter``
+that looked up ``feature_extractor`` and ``sampler_step`` attributes which were
+never assigned anywhere, so every call raised. Those stubs are gone; the
+builders below reach the real implementations.
+"""
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Mapping
 
 import torch
 
-from latent_reward_register.types import RegisterCondition
+from latent_reward_register.implementations.loader import CheckpointRewardRegister
 
-from .base import BackboneAdapter, BackboneFeatures
 from .registry import register_backbone
 
+# Default pipeline identifiers. Point these at local snapshots via config when
+# running offline.
+DEFAULT_MODELS: Mapping[str, str] = {
+    "sd3": "stabilityai/stable-diffusion-3-medium-diffusers",
+    "flux": "black-forest-labs/FLUX.1-dev",
+    "z-image": "Tongyi-MAI/Z-Image-Turbo",
+}
 
-class DiffusersBackboneAdapter(BackboneAdapter):
-    pipeline_class_name: str
-
-    def __init__(self, model_name_or_path: str, *, dtype: torch.dtype = torch.bfloat16, local_files_only: bool = False):
-        self.model_name_or_path = model_name_or_path
-        self.dtype = dtype
-        self.local_files_only = local_files_only
-        self.pipeline = self._load_pipeline()
-        self.transformer = self.pipeline.transformer
-        self.transformer.requires_grad_(False).eval()
-
-    def _load_pipeline(self):
-        import diffusers
-
-        pipeline_class = getattr(diffusers, self.pipeline_class_name)
-        return pipeline_class.from_pretrained(
-            self.model_name_or_path,
-            torch_dtype=self.dtype,
-            local_files_only=self.local_files_only,
-        )
-
-    @property
-    def hidden_size(self) -> int:
-        if hasattr(self.transformer, "inner_dim"):
-            return int(self.transformer.inner_dim)
-        if hasattr(self.transformer.config, "dim"):
-            return int(self.transformer.config.dim)
-        config = self.transformer.config
-        return int(config.num_attention_heads) * int(config.attention_head_dim)
-
-    def extract_features(
-        self,
-        latents: torch.Tensor,
-        condition: RegisterCondition,
-        sigma: torch.Tensor,
-        *,
-        reward_tokens: torch.Tensor,
-        feature_layers: tuple[int, ...],
-    ) -> BackboneFeatures:
-        extractor = getattr(self, "feature_extractor", None)
-        if extractor is None:
-            raise RuntimeError(
-                f"{self.name} feature extraction requires the pinned compatibility implementation; "
-                "install the repository rather than importing this adapter file in isolation"
-            )
-        return extractor(latents, condition, sigma, reward_tokens=reward_tokens, feature_layers=feature_layers)
-
-    def reference_step(
-        self,
-        latents: torch.Tensor,
-        condition: RegisterCondition,
-        sigma: torch.Tensor,
-        next_sigma: torch.Tensor,
-        **kwargs: Any,
-    ) -> torch.Tensor:
-        stepper = getattr(self, "sampler_step", None)
-        if stepper is None:
-            raise RuntimeError(f"{self.name} sampler compatibility implementation is not installed")
-        return stepper(latents, condition, sigma, next_sigma, **kwargs)
+# head_names is intentionally absent: it is per-experiment (SD3 exp11 trains
+# three heads, FLUX/Z-Image unified-v3 train two) and must come from config.
+_ARCHITECTURE = {
+    "sd3": "latent_reward_grid_pool_nope_multihead",
+    "flux": "flux_latent_reward_grid_pool_nope_multihead",
+    "z-image": "zimage_latent_reward_grid_pool_nope_multihead",
+}
 
 
-class SD3Adapter(DiffusersBackboneAdapter):
-    name = "sd3"
-    pipeline_class_name = "StableDiffusion3Pipeline"
+def _require_diffusers() -> None:
+    try:
+        import diffusers  # noqa: F401
+    except ImportError as error:  # pragma: no cover - environment dependent
+        raise RuntimeError(
+            "Model-backed registers need the pinned diffusers revision. "
+            "Install with: pip install -e '.[models]'"
+        ) from error
 
 
-class FluxAdapter(DiffusersBackboneAdapter):
-    name = "flux"
-    pipeline_class_name = "FluxPipeline"
+def build_register(
+    backbone: str,
+    *,
+    head_names: tuple[str, ...],
+    feature_layers: tuple[int, ...],
+    model_name_or_path: str | None = None,
+    text_layers: tuple[int, ...] | None = None,
+    num_transformer_layers: int | None = None,
+    dtype: torch.dtype = torch.bfloat16,
+    local_files_only: bool = False,
+    **architecture_kwargs: Any,
+) -> CheckpointRewardRegister:
+    """Build an untrained model-backed register for one backbone.
+
+    ``feature_layers`` are the taps recorded in the release configs; they follow
+    one rule across backbones (1/6, 1/3, 1/2 of depth, register stopping at
+    half depth) rather than per-model magic numbers.
+    """
+    if backbone not in _ARCHITECTURE:
+        raise ValueError(f"Unknown backbone {backbone!r}; expected one of {sorted(_ARCHITECTURE)}")
+    if not head_names:
+        raise ValueError("head_names is required and must match the training config order")
+    if not feature_layers:
+        raise ValueError("feature_layers is required")
+    _require_diffusers()
+
+    from latent_reward_register.implementations.models import (
+        FluxLatentRewardGridPoolNoPEMultiHeadModel,
+        FluxRewardBackbone,
+        SD3LatentRewardGridPoolNoPEMultiHeadModel,
+        SD3RewardBackbone,
+        ZImageLatentRewardGridPoolNoPEMultiHeadModel,
+        ZImageRewardBackbone,
+    )
+
+    path = model_name_or_path or DEFAULT_MODELS[backbone]
+    backbone_kwargs = {"torch_dtype": dtype, "local_files_only": local_files_only}
+    shared = {
+        "head_names": tuple(head_names),
+        "visual_layers": tuple(feature_layers),
+        "text_layers": tuple(text_layers or feature_layers),
+        "num_transformer_layers": num_transformer_layers,
+        **architecture_kwargs,
+    }
+
+    if backbone == "flux":
+        trunk = FluxRewardBackbone.from_pretrained(path, **backbone_kwargs)
+        model = FluxLatentRewardGridPoolNoPEMultiHeadModel(trunk, **shared)
+    elif backbone == "z-image":
+        trunk = ZImageRewardBackbone.from_pretrained(path, **backbone_kwargs)
+        model = ZImageLatentRewardGridPoolNoPEMultiHeadModel(trunk, **shared)
+    else:
+        trunk = SD3RewardBackbone.from_pretrained(path, **backbone_kwargs)
+        model = SD3LatentRewardGridPoolNoPEMultiHeadModel(trunk, **shared)
+
+    return CheckpointRewardRegister(model, backbone, tuple(head_names))
 
 
-class ZImageAdapter(DiffusersBackboneAdapter):
-    name = "z-image"
-    pipeline_class_name = "ZImagePipeline"
+def build_register_from_config(config: Mapping[str, Any], **overrides: Any) -> CheckpointRewardRegister:
+    """Build a register from a ``configs/register/<backbone>/paper.yaml`` mapping."""
+    backbone_config = config.get("backbone")
+    if not isinstance(backbone_config, Mapping):
+        raise ValueError("Config requires a backbone mapping")
+    register_config = config.get("register")
+    if not isinstance(register_config, Mapping):
+        raise ValueError("Config requires a register mapping")
+
+    known = {"head_names", "feature_layers", "text_layers", "num_transformer_layers", "score_keys"}
+    passthrough = {
+        key: value
+        for key, value in register_config.items()
+        if key not in known and key != "architecture"
+    }
+    return build_register(
+        str(backbone_config.get("name", "")).strip().lower(),
+        head_names=tuple(register_config["head_names"]),
+        feature_layers=tuple(register_config["feature_layers"]),
+        text_layers=tuple(register_config["text_layers"]) if register_config.get("text_layers") else None,
+        num_transformer_layers=register_config.get("num_transformer_layers"),
+        model_name_or_path=backbone_config.get("model_name_or_path"),
+        **{**passthrough, **overrides},
+    )
 
 
-register_backbone("sd3", SD3Adapter)
-register_backbone("flux", FluxAdapter)
-register_backbone("z-image", ZImageAdapter)
+for _name in _ARCHITECTURE:
+    register_backbone(_name, build_register)

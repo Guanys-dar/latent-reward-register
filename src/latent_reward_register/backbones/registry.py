@@ -1,32 +1,35 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from typing import Any
 
-from .base import BackboneAdapter
+# A builder takes the backbone name plus config keyword arguments and returns a
+# scoring register. It is not a BackboneAdapter: the research implementations own
+# their own backbone traversal rather than sitting behind a feature-extraction
+# interface.
+RegisterBuilder = Callable[..., Any]
+_BUILDERS: dict[str, RegisterBuilder] = {}
 
-AdapterFactory = Callable[..., BackboneAdapter]
-_ADAPTERS: dict[str, AdapterFactory] = {}
 
-
-def register_backbone(name: str, factory: AdapterFactory) -> None:
+def register_backbone(name: str, builder: RegisterBuilder) -> None:
     normalized = name.strip().lower()
     if not normalized:
         raise ValueError("Backbone name cannot be empty")
-    if normalized in _ADAPTERS:
-        raise ValueError(f"Backbone adapter already registered: {normalized}")
-    _ADAPTERS[normalized] = factory
+    if normalized in _BUILDERS:
+        raise ValueError(f"Backbone already registered: {normalized}")
+    _BUILDERS[normalized] = builder
 
 
-def create_backbone(name: str, **kwargs) -> BackboneAdapter:
+def create_backbone(name: str, **kwargs: Any) -> Any:
+    """Build a model-backed register for ``name``. Requires model weights."""
     normalized = name.strip().lower()
     try:
-        factory = _ADAPTERS[normalized]
+        builder = _BUILDERS[normalized]
     except KeyError as error:
-        supported = ", ".join(sorted(_ADAPTERS))
+        supported = ", ".join(sorted(_BUILDERS)) or "none"
         raise ValueError(f"Unsupported backbone {name!r}; available: {supported}") from error
-    return factory(**kwargs)
+    return builder(normalized, **kwargs)
 
 
 def available_backbones() -> tuple[str, ...]:
-    return tuple(sorted(_ADAPTERS))
-
+    return tuple(sorted(_BUILDERS))
