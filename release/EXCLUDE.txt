@@ -3,6 +3,7 @@
 
 # Internal working documents
 LRR_CODEBASE_SURVEY.md
+RELEASE_TODO.md
 
 # Private launch configuration (real data roots, cluster paths)
 configs/local.yaml

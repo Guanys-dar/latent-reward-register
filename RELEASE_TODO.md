@@ -1,0 +1,272 @@
+# Release TODO
+
+Working document. Delete before the public export (it is listed in
+`release/EXCLUDE.txt`).
+
+Repository roles: this tree is the **private working repo and the single source
+of truth**. The public repo is produced from it by `release/export.py`, never
+maintained alongside it. Machine-specific values live only in
+`configs/local.yaml`, which is excluded from export, so every other file stays
+byte-identical between the two.
+
+---
+
+## 1. Commands for you to run
+
+### 1.1 Rotate the two exposed credentials — do this first
+
+The **HuggingFace token** was pasted into a chat transcript. Treat it as
+compromised regardless of what else happens; it is not stored in this repo.
+Rotate at <https://huggingface.co/settings/tokens>.
+
+The **SwanLab key** has been removed from all 9 files that carried it (see
+§2.4), but it existed in plaintext on disk and may persist in git history,
+shell history, and training logs. Rotate it too.
+
+```bash
+# Verify no key values remain in the research repo
+cd ~/Reward-Token-Image-0420
+grep -rn 'SWANLAB_API_KEY' main.sh exp*.sh scripts/run/*.sh
+
+# Expected on every line:
+#   export SWANLAB_API_KEY="${SWANLAB_API_KEY:?set SWANLAB_API_KEY in your environment}"
+
+# Set it in your shell instead (add to ~/.bashrc, do not commit)
+export SWANLAB_API_KEY=<new-key>
+```
+
+Check whether the old key reached that repo's git history:
+
+```bash
+cd ~/Reward-Token-Image-0420
+git log --all -S 'SWANLAB_API_KEY' --oneline | head
+```
+
+Any hit means rotation is mandatory, not optional — removing it from the
+working tree does not remove it from history.
+
+### 1.2 Drop the author-rewrite backups
+
+Commit authors on `main` are now `Yuanshen Guan <guanys@mail.ustc.edu.cn>`.
+The pre-rewrite commits, which carried an internal cluster hostname, survive
+only in `refs/original/` and in the reflog. This is irreversible, so it was
+left for you:
+
+```bash
+cd ~/latent-reward-register-release-work
+
+# Confirm the backups are all that still carry the old identity
+git log --all --format='%an <%ae>' | sort -u
+
+git for-each-ref --format='%(refname)' refs/original | xargs -n1 git update-ref -d
+git reflog expire --expire=now --all
+git gc --prune=now
+
+# Should now print exactly one identity
+git log --all --format='%an <%ae>' | sort -u
+```
+
+### 1.3 Decide what happens to `origin`
+
+`origin` points at `z-image-reward-matrix/latent-reward-register`, whose
+history still has the old author. Nothing was pushed. Either overwrite it:
+
+```bash
+cd ~/latent-reward-register-release-work
+git push --force origin main    # destructive: rewrites published history
+```
+
+or detach and treat this tree as the new origin:
+
+```bash
+git remote remove origin
+```
+
+### 1.4 Export and inspect the public tree
+
+```bash
+cd ~/latent-reward-register-release-work
+
+# Scan only; exits non-zero on any machine path, internal identifier, or credential
+python release/export.py --out /tmp/lrr-public --check
+
+# Write it
+python release/export.py --out /tmp/lrr-public
+
+# The export must stand on its own
+cd /tmp/lrr-public && pip install -e '.[dev]' && pytest -q
+```
+
+### 1.5 Publish the dataset as a private HF dataset
+
+Decide first whether HPDv3 images may be redistributed (§3.4). Until then,
+publish manifests and scores only — not images.
+
+```bash
+pip install -U "huggingface_hub[cli]"
+hf auth login          # paste the ROTATED token; never inline it in a command
+
+cd <dataset staging dir>
+hf upload guanys/latent-reward-register . --repo-type=dataset --private
+```
+
+Stage manifests with relative paths only. Verify before uploading:
+
+```bash
+grep -rl '/home/\|/kaimm-distill/' . | head    # must print nothing
+```
+
+---
+
+## 2. Done
+
+### 2.1 Import breakage fixed
+`implementations/models/reward_token_dina_head.py` (534 lines) was missing;
+four modules imported it, so the package's largest subtree raised
+`ModuleNotFoundError` — including the `load_legacy_register` path the README
+advertises. Copied from `Reward-Token-Image-0420` (identical in all three
+source repos; scanned clean).
+
+`tests/test_import_integrity.py` now imports every module. Verified by
+removing the file (suite fails) and restoring it (suite passes). The old suite
+reported 34 passing tests while that subtree was unimportable.
+
+### 2.2 Configs aligned to exp11
+- SD3: three heads at equal weight (`preference`, `pickscore`, `imagereward`);
+  `[4, 8, 12]` taps, 12 register layers, `skip_attn2=true`.
+- FLUX: two heads, `[9, 19, 28]` of 57. Z-Image: two heads, `[5, 10, 15]` of 30.
+- `score_keys` recorded next to `head_names`, since the loss pairs them
+  positionally and a reorder mistrains silently.
+- Tap rule documented (1/6, 1/3, 1/2 of depth, register stops at half) instead
+  of per-model magic numbers.
+- RG-OPD teachers recorded per backbone: SD3 exp11 EMA, FLUX unified-v3 EMA
+  final. The FLUX config carries exp11 as a legacy default and overrides it,
+  so the default alone is misleading.
+
+### 2.3 Data schema corrected
+The documented flat `{latent_path, rewards{}}` schema matched no producer.
+Replaced with the real group manifest (`group_id`, `prompt`,
+`prompt_embeds_path`, `image_records[]`). Verified against a 300-group
+production manifest: all parsed, all three heads resolved.
+
+Table 1: `all_table1_pairs_fixed.jsonl` (54170 pairs) is authoritative. The
+other file has identical labels but different image paths on 6399 pairs.
+
+### 2.4 Hygiene and export
+- Scan widened from `src/` + `configs/` to the whole tree, plus internal
+  identifier and credential checks. The old scan could not see the leaks in
+  `docs/` and the root.
+- `docs/source-provenance.md` rewritten to name repositories, not machine paths.
+- `release/export.py` refuses to export on any violation (verified with a
+  planted leak), `release/EXCLUDE.txt` is the authority, and
+  `configs/local.yaml.example` documents the private-only values.
+- SwanLab key replaced with `${SWANLAB_API_KEY:?...}` in 9 files; all 9 still
+  pass `bash -n`. Two remaining matches are comments, not keys.
+- Commit authors unified.
+
+---
+
+## 3. Blocked on your decisions
+
+### 3.1 SD3 RGS register: exp11 or exp15
+`lrm_reward_backend.py` annotates `lrm_exp11_e3_ema` as "the published Table-2
+numbers" and `lrm_exp15_e3_ema` as "the adopted config". Both cannot be right.
+Which produced the paper's SD3 RGS numbers? Blocks the RGS extraction (§4.3).
+
+### 3.2 SD3 RG-OPD run
+`rt-gradient-opd/RG-OPD/scripts/single_node/` holds a dozen variants
+(`rt040`, `rt020`, `sched`, `cfgdistill_*`, `emaanchor`, `selfanchor`,
+`matrix_{ir,hps,twohead}`). Current config says `reward_scale: 0.40` +
+`anchor: frozen_reference` — confirm that is the paper run. FLUX has a
+`provenance.json`; SD3 has no equivalent record.
+
+### 3.3 FLUX RGS scope
+You scoped RGS to SD3, and noted FLUX RGS did not beat flow-grpo, so it stays
+private. But Table 3's FLUX column was generated by `flux_rt_guided_sampling.py`.
+If Table 3 is in the paper, the public repo cannot reproduce it. Either drop
+`configs/rgs/flux/paper.yaml` from the export and say Table 3's FLUX column is
+not reproducible, or publish that path. Currently the config is still exported.
+
+### 3.4 HPDv3 image redistribution
+Train set stays private, described as a filtered HPDv3 subset — that settles
+training data. Still open for the **Table 1 test pairs**: they reference
+ImageReward test images. Redistribute, or ship the pair file plus a download
+script? A download script is the safer default.
+
+### 3.5 Anonymity window
+Author is now your real name and institutional email. If the paper is still
+under anonymous review, pushing publicly exposes identity and timeline. Confirm
+the review stage before any public push.
+
+### 3.6 Checkpoint publication
+Which artifacts, and where: SD3 register (exp11 EMA), FLUX register
+(unified-v3 EMA), Z-Image register, SD3 OPD LoRA (~72 MB each), FLUX OPD LoRA
+(~499 MB each). The Z-Image register run directory is ~713 GB, so it cannot
+ship in raw form.
+
+### 3.7 Stale FLUX selection file
+`flux_opd/eval_flux/outputs/_select/selection.json` is from the exp11-teacher
+generation and disagrees with the canonical `SELECTION.md` (HPS 150,
+ImageReward 60, TwoHead 150). The correct epochs are now recorded in
+`docs/source-provenance.md`; consider deleting the stale file at the source so
+it cannot be cited by mistake.
+
+### 3.8 Paper draft layer values
+A draft states SD3 taps `{2, 5, 8}`, which matches no checked-in config.
+Recorded as superseded by exp11 — confirm the paper text gets corrected.
+
+---
+
+## 4. Not yet implemented
+
+Ordered by impact.
+
+### 4.1 Wire the backbone adapters — the critical gap
+`backbones/diffusers.py` reads `feature_extractor` and `sampler_step` via
+`getattr`, and **nothing ever assigns them**, so `extract_features` and
+`reference_step` raise for all three backbones. `implementations/` (the real
+ported code) and `backbones/` (the interface) do not reference each other, so
+no code path reaches the working model. This is the whole distance between
+"imports cleanly" and "runs a model". Depends on nothing — ready to start.
+
+### 4.2 Bring in SD3 RG-OPD
+`rt-gradient-opd/RG-OPD`: `scripts/train_sd3_rgopd.py` (1167 lines),
+`rg_opd/` (531 lines), `eval_table3/`. Should call the shared
+`build_rgopd_target` / `rgopd_loss` rather than duplicating the equations.
+Depends on §3.2.
+
+### 4.3 Extract the RGS implementation
+`sd3_pipeline_with_rt_guidance.py` (3364 lines) and `lrm_reward_backend.py`
+(1902 lines) from the `flow_grpo` fork. Do **not** ship the fork: it is 19 GB
+and the first-party delta is 3 modified files (+145/−10). Drop the ~30
+pavrm/dina/sd15/sdxl loaders, which are most of the absolute-path surface.
+Depends on §3.1 and §3.3.
+
+### 4.4 Runnable commands and a smoke mode
+Every config needs one real command, plus a few-minute `--smoke` path.
+`lrr smoke-release` currently exercises a synthetic 4-dim adapter: it shows the
+math is wired, not that any model runs. Reviewers will run the smoke path and
+little else.
+
+### 4.5 Restore the group loss
+`thurstone_pairwise_loss` compares a single pair. The real
+`dina_thurstone_loss` does all within-group pairs with `group_mask`,
+`min_target_gap` filtering, and per-group normalization. The data layer is
+already group-shaped; the loss has not caught up.
+
+### 4.6 Third-party licensing
+`OneIG-Benchmark`, `self-refine-video`, and `T2I-CompBench` carry no license
+grant. `self-refine-video` and `classifier-free-guidance-pytorch` are never
+imported — delete them. The rest are used only as prompt sources (plus
+CompBench's CLIPScore), so ship the derived prompt lists and a setup script
+instead of the clones. Ported files also need origin/license headers.
+
+### 4.7 Benchmark runners and prompt lists
+No Table 1/2/3 runner exists, and no prompt lists are checked in. Export
+balanced500 (x2 seeds, 42/43) and keep800 from the source repos, with
+checksums and row counts.
+
+### 4.8 README rewrite
+The "Release status" section describes the pre-fix state. Must also state that
+Z-Image stops at register training and preference scoring: no downstream
+evaluation or RG-OPD consumes that register.
