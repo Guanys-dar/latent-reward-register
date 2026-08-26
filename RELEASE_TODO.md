@@ -266,6 +266,35 @@ ported code) and `backbones/` (the interface) do not reference each other, so
 no code path reaches the working model. This is the whole distance between
 "imports cleanly" and "runs a model". Depends on nothing — ready to start.
 
+### 4.1b Recover the input-latent gradient (blocks RGS and RG-OPD)
+`score_and_grad` against real SD3 weights fails with:
+
+    RuntimeError: One of the differentiated Tensors appears to not have been
+    used in the graph.
+
+This is architectural, not a wiring slip. The training forward runs each SD3
+joint block inside `torch.no_grad()` (`latent_reward_grid.py:670`), because the
+backbone is frozen while the register trains. That hard-detaches
+latent -> visual-features, so `d reward / d latent` does not exist on a plain
+`forward()` — and that gradient is exactly what RGS and RG-OPD consume.
+
+The research code solves it explicitly, and the comment at
+`lrm_reward_backend.py:861-868` spells out why: it rebinds
+`_run_frozen_sd3_block` to a grad-enabled clone
+(`_run_frozen_sd3_block_grad`, bound via `types.MethodType` at
+`lrm_reward_backend.py:922`, and again at 1122 and 1455 for the other loaders).
+Weights stay frozen through `requires_grad_(False)`; only the input-latent
+gradient is recovered. Nothing about the checkpoint or training code changes.
+
+The release must carry an equivalent grad-enabled path. Prefer a documented
+scoring mode over a monkey-patch now that the code is being published: same
+math, but discoverable. Until this lands, `score_and_grad` works only for
+models whose head reads layer-0 inputs (`head_input_tokens: true`, exp13/exp14),
+not for the exp11 release baseline.
+
+Note this also means a CPU test can verify the equations but never this path,
+which is how it stayed hidden.
+
 ### 4.2 Bring in SD3 RG-OPD
 `rt-gradient-opd/RG-OPD`: `scripts/train_sd3_rgopd.py` (1167 lines),
 `rg_opd/` (531 lines), `eval_table3/`. Should call the shared
