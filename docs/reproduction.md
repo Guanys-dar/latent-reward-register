@@ -52,6 +52,27 @@ FLUX checkpoint selection is argmax HPSv3 subject to CLIP-IQA >= 0.649, over 100
 held-out screen prompts disjoint from the test set. Chosen epochs: HPS 150,
 ImageReward 60, TwoHead 150.
 
+## Published evaluation assets
+
+| Asset | Published | Purpose |
+| --- | --- | --- |
+| Table 1 pair file + fetch script | yes | preference accuracy, end to end |
+| keep-800 key set | yes | identifies which samples Table 3 scores |
+| 500-prompt generation set | no | — |
+| 100 held-out FLUX screen prompts | no | — |
+
+The consequence is worth stating plainly: **Table 1 is reproducible end to end**
+once the images are fetched, whereas for Table 3 the released keep-800 set lets
+you confirm which samples were scored and reuse the exact filter, but not
+regenerate the images, because the generation prompt set is not published.
+
+keep-800 is 800 `[prompt_index, seed]` keys out of 1000 (500 prompts x seeds
+42/43). The worst 200 are dropped by an equal-weight z-sum of
+{hpsv2, hpsv3, imagereward, pickscore}, computed once on a defining variant and
+then applied unchanged to every variant so comparisons stay paired. Re-deriving
+that filter on different generations produces a different 800, and therefore
+different numbers — so use the published keys rather than recomputing them.
+
 ## Evaluation
 
 Pairwise preference accuracy must preserve prompt groups and use the fixed

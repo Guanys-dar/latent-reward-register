@@ -33,11 +33,17 @@ plus a setup script that fetches a harness when a user wants to re-score:
   clone at a moving HEAD would not guarantee,
 - and drops a large amount of unrelated code from the release.
 
-Prompt lists to export, with checksums and row counts:
+Key sets to export, with checksums and counts:
 
-- `balanced500` (Table 2, 500 prompts x seeds 42/43)
-- `keep800` (Table 3 fixed key set)
-- the 100 held-out FLUX RG-OPD screen prompts (disjoint from keep800)
+- **`keep800`** — the Table 3 evaluation key set. This is the only one published.
+  Exported by `release/export_keep800.py`.
+
+Deliberately not published: `balanced500` (the 500-prompt generation set) and the
+100 held-out FLUX screen prompts. Note the consequence — without the generation
+prompts a reader cannot regenerate the images Table 3 scores, so keep800 lets
+them verify *which* samples were scored and reuse the exact filter, not rerun the
+generation. State that plainly in the release rather than implying full
+end-to-end reproducibility.
 
 ## One more redistribution note
 
