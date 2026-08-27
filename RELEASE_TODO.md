@@ -254,14 +254,16 @@ Registers shrink because research checkpoints carry optimizer and LR-scheduler
 state (and, for FLUX, a duplicate `extra_state`) that is useless for inference:
 FLUX is 594.8M params but 1114.1M more in optimizer alone.
 
-**One conflict to settle.** You asked for OPD epochs 60 and 90. That is what SD3
-publishes. For FLUX the selection protocol (argmax HPSv3 subject to
-CLIP-IQA >= 0.649) chose **hps 150, imagereward 60, twohead 150**, and 90 is not
-the selected epoch for any FLUX run — so publishing 60/90 there would hand
-readers checkpoints that do not reproduce the paper. The tool currently ships
-the selected FLUX epochs. `--all-epochs` publishes all five per run
-(30/60/90/120/150, 0.52 GB each, ~7.8 GB total) if you prefer full coverage;
-say which and I will switch it.
+**FLUX epochs: full sweep.** You asked for 60 and 90; 90 is not the selected
+epoch for any FLUX run (the protocol chose hps 150, imagereward 60,
+twohead 150), so publishing 60/90 there would hand readers checkpoints that do
+not reproduce the paper. Per your "upload them all if unsure", FLUX now ships
+every epoch (30/60/90/120/150) and each manifest entry carries
+`selected_by_protocol` so the citable one is unambiguous. SD3 ships 60 and 90 as
+you asked.
+
+Raw total 19.5 GB; registers repack from 11.5 GB to about 3.0 GB, so roughly
+9.3 GB is published.
 
 ### 3.7 Stale FLUX selection file — MITIGATED
 The correct epochs (HPS 150, ImageReward 60, TwoHead 150) and an explicit "do
@@ -387,7 +389,24 @@ imported — delete them. The rest are used only as prompt sources (plus
 CompBench's CLIPScore), so ship the derived prompt lists and a setup script
 instead of the clones. Ported files also need origin/license headers.
 
-### 4.7 Benchmark runners and prompt lists
+### 4.7 Benchmark runners and prompt lists — key sets done
+`release/export_keep800.py` exports the keep-800 key set with validation
+(counts agree, keep and drop disjoint). Per your instruction balanced500 is not
+published.
+
+keep-800 is **not a prompt list**: it is 800 `[prompt_index, seed]` keys out of
+1000 (500 prompts x seeds 42/43), obtained by dropping the worst 200 by an
+equal-weight z-sum of {hpsv2, hpsv3, imagereward, pickscore} computed once on a
+defining variant, then applied unchanged to every variant so comparisons stay
+paired. Publishing the keys is what makes Table 3 checkable — re-deriving the
+filter on new generations gives a different 800 and different numbers. Five
+byte-identical copies exist in the workspace, so there is no ambiguity about
+which to ship.
+
+Still missing: the Table 1/2/3 **runners** (generate -> score -> aggregate) and
+the 100 held-out FLUX screen prompts.
+
+### 4.7b Original section text
 No Table 1/2/3 runner exists, and no prompt lists are checked in. Export
 balanced500 (x2 seeds, 42/43) and keep800 from the source repos, with
 checksums and row counts.

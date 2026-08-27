@@ -7,6 +7,7 @@ RELEASE_TODO.md
 release/THIRD_PARTY.md
 release/package_checkpoints.py
 release/export_table1_pairs.py
+release/export_keep800.py
 
 # Private launch configuration (real data roots, cluster paths)
 configs/local.yaml

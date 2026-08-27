@@ -39,12 +39,28 @@ _SD3_OPD = "/home/guanyuanshen/rt-gradient-opd/RG-OPD/logs"
 # Epoch chosen by the selection protocol (argmax HPSv3 s.t. CLIP-IQA >= 0.649).
 # SD3 publishes two epochs to match FLUX coverage; FLUX publishes the selected ones.
 OPD_RUNS = {
-    "flux-hps": (f"{_FLUX_OPD}/[FLUX-OPD B + unified-v3 HPS rt0.80 sigma>0.2 e150]", [150]),
+    # FLUX publishes the full sweep: the selection protocol chose 150/60/150, so
+    # a 60-and-90 pair would hand readers non-selected checkpoints. Shipping every
+    # epoch lets a reader reproduce the selection itself. SELECTED_EPOCH records
+    # which one backs each reported number.
+    "flux-hps": (f"{_FLUX_OPD}/[FLUX-OPD B + unified-v3 HPS rt0.80 sigma>0.2 e150]", [30, 60, 90, 120, 150]),
     "flux-imagereward": (
-        f"{_FLUX_OPD}/[FLUX-OPD C1 + unified-v3 ImageReward rt0.80 sigma>0.2 e150]", [60]
+        f"{_FLUX_OPD}/[FLUX-OPD C1 + unified-v3 ImageReward rt0.80 sigma>0.2 e150]",
+        [30, 60, 90, 120, 150],
     ),
-    "flux-twohead": (f"{_FLUX_OPD}/[FLUX-OPD C2 + unified-v3 TwoHead rt0.80 sigma>0.2 e150]", [150]),
+    "flux-twohead": (
+        f"{_FLUX_OPD}/[FLUX-OPD C2 + unified-v3 TwoHead rt0.80 sigma>0.2 e150]",
+        [30, 60, 90, 120, 150],
+    ),
     "sd3-hps": (f"{_SD3_OPD}/[RG-OPD A + SD3-M + exp11ema HPS rt0.40]", [60, 90]),
+}
+
+# Epoch behind each reported number, per the selection protocol. Recorded in the
+# manifest so a reader publishing all epochs still knows which one to cite.
+SELECTED_EPOCH = {
+    "flux-hps": 150,
+    "flux-imagereward": 60,
+    "flux-twohead": 150,
 }
 
 # Training-only state: large, and useless for inference or re-scoring.
@@ -143,7 +159,10 @@ def main() -> int:
                 shutil.rmtree(target)
             shutil.copytree(path, target)
             files = sorted(f for f in target.rglob("*") if f.is_file())
+            run = name.rsplit("-epoch", 1)[0]
+            epoch = int(name.rsplit("-epoch", 1)[1])
             manifest.append({"name": name, "kind": kind, "directory": str(target.relative_to(args.out)),
+                             "selected_by_protocol": SELECTED_EPOCH.get(run) == epoch,
                              "files": {str(f.relative_to(target)): sha256(f) for f in files}})
             print(f"copied {name}")
 
