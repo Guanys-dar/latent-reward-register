@@ -25,10 +25,33 @@ Pairwise evaluation is executable through
 `1` as the second, counts exact score ties separately, and returns aggregate
 accuracy metrics.
 
-Table 1 pair metadata, image assets, and released register checkpoints are
-intentionally deferred. Once supplied, the evaluator should preserve pair
-ordering, prompt groups, and the checkpoint-embedded configuration.
+## Table 1
 
-Until those assets are published, an end-to-end Table 1 file loader and runner
-remain unavailable. The evaluator itself is covered by CPU tests and the
-asset-free release smoke command.
+The released pair file holds 54170 pairs across four benchmarks:
+
+| Dataset | Pairs | Subset |
+| --- | --- | --- |
+| GenAI-Bench | 18099 | `train1600_rating_pairs` |
+| HPDv2 | 15300 | `test_pairs` |
+| HPDv3 | 14372 | `test_clean` |
+| ImageReward | 6399 | `test_rank_pairs` |
+
+Each record carries `dataset`, `image1`, `image2`, `preferred` (0 or 1),
+`prompt`, and provenance under `source`. Image paths are relative to a
+per-dataset root: the images belong to those four projects and are not
+redistributed here.
+
+```bash
+python scripts/fetch_table1_images.py --pairs all_table1_pairs.jsonl --out ./table1_images
+python scripts/fetch_table1_images.py --pairs all_table1_pairs.jsonl --out ./table1_images --verify
+```
+
+Run `--verify` before trusting a reported accuracy: it exits non-zero if any
+referenced image is absent, so a partially downloaded root cannot silently
+produce a number covering only part of the benchmark.
+
+Two pair files exist in the research history with identical labels but different
+ImageReward image paths on 6399 rows. The released file derives from
+`all_table1_pairs_fixed.jsonl`; verify the checksum in `TABLE1_MANIFEST.json`.
+
+The evaluator itself is covered by CPU tests and by `lrr smoke-release`.

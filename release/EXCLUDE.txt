@@ -6,6 +6,7 @@ LRR_CODEBASE_SURVEY.md
 RELEASE_TODO.md
 release/THIRD_PARTY.md
 release/package_checkpoints.py
+release/export_table1_pairs.py
 
 # Private launch configuration (real data roots, cluster paths)
 configs/local.yaml
