@@ -7,6 +7,7 @@ from .implementations import (
 )
 from .preference import PreferenceMetrics, PreferencePairBatch, evaluate_preference_pairs
 from .register import RewardRegister, RewardRegisterConfig
+from .table1 import evaluate_table1, position_bias, read_pair_file, shuffled
 from .velocity import FluxVelocityModel, SD3VelocityModel, attach_lora_student
 from .flowmatch import euler_step, make_reference_step, make_student_policy
 from .rollout import RolloutConfig, RolloutTrace, train_rgopd_rollout
@@ -15,6 +16,10 @@ from .rgopd import RGOPDBatch, RGOPDTrainConfig, RGOPDTrainMetrics, train_rgopd
 __all__ = [
     "CheckpointManifest",
     "CheckpointRewardRegister",
+    "evaluate_table1",
+    "position_bias",
+    "read_pair_file",
+    "shuffled",
     "FluxVelocityModel",
     "SD3VelocityModel",
     "attach_lora_student",
