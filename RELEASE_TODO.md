@@ -222,18 +222,18 @@ FLUX RGS is in scope: Table 3 compares both backbones, so
 `configs/rgs/flux/paper.yaml` stays in the export and the README lists RGS as
 supported for SD3 and FLUX.
 
-### 3.4 Data publication — PARTLY RESOLVED
-Training set stays private, described in the docs as a filtered HPDv3 subset.
-Dataset artifacts go to the private HF dataset `guanys/latent-reward-register`.
+### 3.4 Data publication — RESOLVED
+Training set stays private, documented as a filtered HPDv3 subset. Dataset
+artifacts go to the private HF dataset `guanys/latent-reward-register`.
 
-Still open: the **Table 1 test pairs** reference ImageReward test images.
-Redistributing third-party images is the risk; shipping the pair file plus a
-download script is the safer default and preserves the exact pairs.
+Table 1 ships as a pair file plus a fetch script, not as images:
+`release/export_table1_pairs.py` produces the portable file (54170 pairs, no
+machine paths, labels verified row-by-row against the source) and
+`scripts/fetch_table1_images.py` reconstructs the four image roots. Its
+`--verify` exits non-zero on any missing image.
 
-### 3.5 Anonymity window — YOUR CALL, unchanged
-Author is `Yuanshen Guan <guanys@mail.ustc.edu.cn>` as instructed. If the paper
-is still under anonymous review, a public push exposes identity and timeline.
-Nothing has been pushed.
+### 3.5 Anonymity window — NOT A CONSTRAINT
+Confirmed not a concern. Author is `Yuanshen Guan <guanys@mail.ustc.edu.cn>`.
 
 ### 3.6 Checkpoint publication — DECIDED, packaging tool ready
 Publish SD3 + FLUX registers and SD3 + FLUX OPD LoRAs. **Z-Image is not
