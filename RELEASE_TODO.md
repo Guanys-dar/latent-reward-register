@@ -369,14 +369,20 @@ FLUX — one function returning the guided flow velocity, which
 `classifier_free_velocity` composes. Per §3.3 both backbones are in scope since
 Table 3 compares them.
 
-### 4.4 Runnable commands and a smoke mode — partly done
-`lrr build-register` is in: it constructs a register from a config against real
-weights and reports the trainable parameter count, which is the check that
-caught both the invented config keys and the doubled group axis.
+### 4.4 Runnable commands — DONE for the model path
+`lrr build-register` constructs a register from a config against real weights and
+reports the trainable parameter count (147,599,619 for SD3, matching the exp11
+log). That check caught both the invented config keys and the doubled group axis.
 
-Still missing: a real `train-register` / `sample` / `train-rgopd` execution path
-(each still refuses without `--dry-run`), which depends on §4.2 and §4.3, and a
-few-minute reduced-scale mode for reviewers.
+`velocity.py` supplies the last missing piece: `SD3VelocityModel`,
+`FluxVelocityModel`, and `attach_lora_student`. The algorithm layer takes the
+velocity model as a callable, so nothing backbone-specific leaks into
+`sampling.py` or `rollout.py`. A CPU test drives
+velocity -> flowmatch -> teacher -> rollout end to end.
+
+Remaining: the `sample` / `train-rgopd` CLI subcommands still refuse without
+`--dry-run`. The Python API is complete, so this is argument plumbing plus a
+reduced-scale mode for reviewers.
 
 ### 4.5 Restore the group loss — DONE
 Ported and verified bit-exact against the research implementation across batch
@@ -389,21 +395,25 @@ imported — delete them. The rest are used only as prompt sources (plus
 CompBench's CLIPScore), so ship the derived prompt lists and a setup script
 instead of the clones. Ported files also need origin/license headers.
 
-### 4.7 Benchmark runners and prompt lists — evaluation sets done
-`release/export_keep800.py` exports the keep-800 evaluation set, joined against
-`prompts500.jsonl` so each of the 800 entries carries prompt text, seed, and
-provenance. Verified: every key resolves, all seeds are in {42, 43}, all 800
-pairs are distinct, and the output contains no machine paths.
+### 4.7 Benchmark runners and prompt lists — Table 1 done
+`release/export_keep800.py` exports the keep-800 evaluation set joined against
+`prompts500.jsonl`, so each of the 800 entries carries prompt text, seed, and
+provenance. That is sufficient for Tables 2 and 3: they report metrics only over
+keep-800, and the dropped 200 never enter a number, so `balanced500` is not
+needed and is not published.
 
-This is sufficient for Tables 2 and 3. Those tables report metrics over keep-800
-only, and the 200 dropped samples never enter a reported number, so publishing
-the 800 scored samples with their prompts and seeds is enough to regenerate and
-re-score exactly what the paper reports. `balanced500` is therefore not needed
-and is not published.
+`table1.py` is the Table 1 runner: it reads the released pair file, resolves
+images against per-dataset roots, and reports accuracy overall and per dataset.
+Verified against the real 54170-pair file.
 
-Still missing: the Table 1/2/3 **runners** (generate -> score -> aggregate), and
-the 100 held-out FLUX screen prompts (needed only to re-derive the checkpoint
-selection, not to reproduce a reported number).
+It also guards a hazard found while parsing that file: `image1` is always the
+human-preferred image, so every label is 0 and a constant "first" answer scores
+100%. Use `shuffled()` or `position_bias()` before reporting a number.
+
+Remaining: the Table 2/3 generate -> score -> aggregate driver. The evaluation
+set, guidance, sampler, and velocity models are all in place; what is missing is
+the batch generation loop and the metric harness wiring (hpsv3, imagereward,
+musiq, clipiqa), which needs those third-party scorers installed.
 
 ### 4.8 README rewrite — DONE
 Rewritten around what the package does, including the gradient mode, the shared
