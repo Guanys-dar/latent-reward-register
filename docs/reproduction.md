@@ -61,17 +61,19 @@ ImageReward 60, TwoHead 150.
 | 500-prompt generation set | no | — |
 | 100 held-out FLUX screen prompts | no | — |
 
-The consequence is worth stating plainly: **Table 1 is reproducible end to end**
-once the images are fetched, whereas for Table 3 the released keep-800 set lets
-you confirm which samples were scored and reuse the exact filter, but not
-regenerate the images, because the generation prompt set is not published.
+Table 3 is scored on **keep-800**, so that key set is published: it is the
+evaluation set, and re-deriving it yields different numbers.
 
-keep-800 is 800 `[prompt_index, seed]` keys out of 1000 (500 prompts x seeds
+keep-800 holds 800 `[prompt_index, seed]` keys out of 1000 (500 prompts x seeds
 42/43). The worst 200 are dropped by an equal-weight z-sum of
 {hpsv2, hpsv3, imagereward, pickscore}, computed once on a defining variant and
-then applied unchanged to every variant so comparisons stay paired. Re-deriving
-that filter on different generations produces a different 800, and therefore
-different numbers — so use the published keys rather than recomputing them.
+then applied unchanged to every variant so comparisons stay paired.
+
+The keys carry indices, not prompt text. Since the 500-prompt generation set is
+not published, index 400 cannot be resolved to a prompt, so a reader can verify
+the filter and re-score images they already have, but cannot regenerate the 1000
+images keep-800 selects from. **Table 1 is the table that reproduces end to
+end** once its images are fetched.
 
 ## Evaluation
 
