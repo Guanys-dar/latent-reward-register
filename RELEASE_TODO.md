@@ -235,11 +235,33 @@ Author is `Yuanshen Guan <guanys@mail.ustc.edu.cn>` as instructed. If the paper
 is still under anonymous review, a public push exposes identity and timeline.
 Nothing has been pushed.
 
-### 3.6 Checkpoint publication
-Which artifacts, and where: SD3 register (exp11 EMA), FLUX register
-(unified-v3 EMA), Z-Image register, SD3 OPD LoRA (~72 MB each), FLUX OPD LoRA
-(~499 MB each). The Z-Image register run directory is ~713 GB, so it cannot
-ship in raw form.
+### 3.6 Checkpoint publication — DECIDED, packaging tool ready
+Publish SD3 + FLUX registers and SD3 + FLUX OPD LoRAs. **Z-Image is not
+published**: it has no downstream experiment, so its register would be a
+14.2 GB artifact nothing consumes.
+
+`release/package_checkpoints.py --plan` lists exactly what ships; `--out <dir>`
+stages it with a `CHECKSUMS.json`. Nothing is uploaded by the script.
+
+| Artifact | Raw | Packaged | Note |
+| --- | --- | --- | --- |
+| SD3 register (exp11 e3 EMA) | 2.29 GB | ~0.6 GB | 147,599,619 params — matches the exp11 log exactly |
+| FLUX register (unified-v3 final EMA) | 9.22 GB | ~2.4 GB | 594.8M params |
+| FLUX OPD LoRA x3 | 0.52 GB each | unchanged | hps e150, imagereward e60, twohead e150 |
+| SD3 OPD LoRA x2 | 0.08 GB each | unchanged | exp11ema HPS rt0.40, epochs 60 and 90 |
+
+Registers shrink because research checkpoints carry optimizer and LR-scheduler
+state (and, for FLUX, a duplicate `extra_state`) that is useless for inference:
+FLUX is 594.8M params but 1114.1M more in optimizer alone.
+
+**One conflict to settle.** You asked for OPD epochs 60 and 90. That is what SD3
+publishes. For FLUX the selection protocol (argmax HPSv3 subject to
+CLIP-IQA >= 0.649) chose **hps 150, imagereward 60, twohead 150**, and 90 is not
+the selected epoch for any FLUX run — so publishing 60/90 there would hand
+readers checkpoints that do not reproduce the paper. The tool currently ships
+the selected FLUX epochs. `--all-epochs` publishes all five per run
+(30/60/90/120/150, 0.52 GB each, ~7.8 GB total) if you prefer full coverage;
+say which and I will switch it.
 
 ### 3.7 Stale FLUX selection file — MITIGATED
 The correct epochs (HPS 150, ImageReward 60, TwoHead 150) and an explicit "do
