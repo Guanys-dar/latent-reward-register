@@ -406,11 +406,6 @@ which to ship.
 Still missing: the Table 1/2/3 **runners** (generate -> score -> aggregate) and
 the 100 held-out FLUX screen prompts.
 
-### 4.7b Original section text
-No Table 1/2/3 runner exists, and no prompt lists are checked in. Export
-balanced500 (x2 seeds, 42/43) and keep800 from the source repos, with
-checksums and row counts.
-
 ### 4.8 README rewrite — DONE
 Rewritten around what the package does, including the gradient mode, the shared
 teacher, the three verification levels, and the Z-Image scope limit.
