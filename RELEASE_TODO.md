@@ -389,22 +389,21 @@ imported — delete them. The rest are used only as prompt sources (plus
 CompBench's CLIPScore), so ship the derived prompt lists and a setup script
 instead of the clones. Ported files also need origin/license headers.
 
-### 4.7 Benchmark runners and prompt lists — key sets done
-`release/export_keep800.py` exports the keep-800 key set with validation
-(counts agree, keep and drop disjoint). Per your instruction balanced500 is not
-published.
+### 4.7 Benchmark runners and prompt lists — evaluation sets done
+`release/export_keep800.py` exports the keep-800 evaluation set, joined against
+`prompts500.jsonl` so each of the 800 entries carries prompt text, seed, and
+provenance. Verified: every key resolves, all seeds are in {42, 43}, all 800
+pairs are distinct, and the output contains no machine paths.
 
-keep-800 is **not a prompt list**: it is 800 `[prompt_index, seed]` keys out of
-1000 (500 prompts x seeds 42/43), obtained by dropping the worst 200 by an
-equal-weight z-sum of {hpsv2, hpsv3, imagereward, pickscore} computed once on a
-defining variant, then applied unchanged to every variant so comparisons stay
-paired. Publishing the keys is what makes Table 3 checkable — re-deriving the
-filter on new generations gives a different 800 and different numbers. Five
-byte-identical copies exist in the workspace, so there is no ambiguity about
-which to ship.
+This is sufficient for Tables 2 and 3. Those tables report metrics over keep-800
+only, and the 200 dropped samples never enter a reported number, so publishing
+the 800 scored samples with their prompts and seeds is enough to regenerate and
+re-score exactly what the paper reports. `balanced500` is therefore not needed
+and is not published.
 
-Still missing: the Table 1/2/3 **runners** (generate -> score -> aggregate) and
-the 100 held-out FLUX screen prompts.
+Still missing: the Table 1/2/3 **runners** (generate -> score -> aggregate), and
+the 100 held-out FLUX screen prompts (needed only to re-derive the checkpoint
+selection, not to reproduce a reported number).
 
 ### 4.8 README rewrite — DONE
 Rewritten around what the package does, including the gradient mode, the shared

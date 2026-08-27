@@ -38,13 +38,11 @@ Key sets to export, with checksums and counts:
 - **`keep800`** — the Table 3 evaluation key set. This is the only one published.
   Exported by `release/export_keep800.py`.
 
-Table 3 is scored on keep800, which is why that key set ships.
-
-Deliberately not published: `balanced500` (the 500-prompt generation set) and the
-100 held-out FLUX screen prompts. Because keep800 stores prompt *indices* rather
-than prompt text, withholding balanced500 means a reader can verify the filter
-and re-score existing images but cannot regenerate them. Say so plainly rather
-than implying Table 3 reproduces end to end.
+Tables 2 and 3 are scored on keep800, and the released file is self-contained:
+every one of its 800 entries carries prompt text plus seed, so those exact
+samples can be regenerated. The 200 dropped samples never enter a reported
+number, so `balanced500` (the full 500-prompt generation set) is not needed and
+is not published.
 
 ## One more redistribution note
 

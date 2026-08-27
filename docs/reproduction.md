@@ -56,24 +56,20 @@ ImageReward 60, TwoHead 150.
 
 | Asset | Published | Purpose |
 | --- | --- | --- |
-| Table 1 pair file + fetch script | yes | preference accuracy, end to end |
-| keep-800 key set | yes | identifies which samples Table 3 scores |
-| 500-prompt generation set | no | — |
-| 100 held-out FLUX screen prompts | no | — |
+| Table 1 pair file + fetch script | yes | preference accuracy |
+| keep-800 sample set | yes | the Table 2 / Table 3 evaluation set |
 
-Table 3 is scored on **keep-800**, so that key set is published: it is the
-evaluation set, and re-deriving it yields different numbers.
+Both tables reproduce from what is published. Tables 2 and 3 report metrics over
+keep-800, and the released `keep800.json` is self-contained: each of its 800
+entries carries the prompt text, the seed, and its provenance, so the exact
+scored samples can be regenerated. The 200 dropped samples never enter any
+reported number, so the full 500-prompt generation set is not needed.
 
-keep-800 holds 800 `[prompt_index, seed]` keys out of 1000 (500 prompts x seeds
-42/43). The worst 200 are dropped by an equal-weight z-sum of
-{hpsv2, hpsv3, imagereward, pickscore}, computed once on a defining variant and
-then applied unchanged to every variant so comparisons stay paired.
-
-The keys carry indices, not prompt text. Since the 500-prompt generation set is
-not published, index 400 cannot be resolved to a prompt, so a reader can verify
-the filter and re-score images they already have, but cannot regenerate the 1000
-images keep-800 selects from. **Table 1 is the table that reproduces end to
-end** once its images are fetched.
+keep-800 was derived once by dropping the worst 200 of 1000 (500 prompts x seeds
+42/43) by an equal-weight z-sum of {hpsv2, hpsv3, imagereward, pickscore} on a
+defining variant, then applied unchanged to every variant so comparisons stay
+paired. Use the published set rather than re-deriving the filter: recomputing it
+on new generations selects a different 800 and yields different numbers.
 
 ## Evaluation
 

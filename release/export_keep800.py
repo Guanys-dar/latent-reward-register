@@ -27,6 +27,13 @@ SOURCE = (
     "/drop_set_keep800.json"
 )
 
+# The key set stores prompt indices; the prompt text lives here. Joining them
+# makes the released file self-contained, so a reader can regenerate exactly the
+# 800 scored samples without the full 500-prompt generation set.
+PROMPTS = (
+    "/kaimm-distill/ysguan/z-image-reward-matrix/node2/src/flow_grpo/eval/prompts500.jsonl"
+)
+
 
 def main() -> int:
     parser = argparse.ArgumentParser()
@@ -41,9 +48,25 @@ def main() -> int:
         print(f"MISSING {source}")
         return 1
 
+    prompts_path = Path(PROMPTS)
+    if not prompts_path.exists():
+        print(f"MISSING {prompts_path}")
+        return 1
+
+    prompts = {}
+    for line in prompts_path.read_text().splitlines():
+        if line.strip():
+            record = json.loads(line)
+            prompts[int(record["prompt_index"])] = record
+
     payload = json.loads(source.read_text())
     keep = [tuple(key) for key in payload["keep_keys"]]
     drop = [tuple(key) for key in payload["drop_keys"]]
+
+    unresolved = sorted({index for index, _ in keep} - set(prompts))
+    if unresolved:
+        print(f"Refusing: {len(unresolved)} keep indices have no prompt (first: {unresolved[:5]})")
+        return 1
 
     if len(keep) != payload["n_keep"] or len(drop) != payload["n_drop"]:
         print("Refusing: recorded counts disagree with the key lists.")
@@ -56,11 +79,13 @@ def main() -> int:
         return 1
 
     seeds = sorted({seed for _, seed in keep})
-    prompts = sorted({index for index, _ in keep})
+    kept_indices = sorted({index for index, _ in keep})
     print(f"keep {len(keep)} of {payload['n_total']} (drop {len(drop)})")
     print(f"  seeds: {seeds}")
-    print(f"  distinct prompt indices in keep: {len(prompts)} (range {min(prompts)}-{max(prompts)})")
+    print(f"  distinct prompt indices in keep: {len(kept_indices)} "
+          f"(range {min(kept_indices)}-{max(kept_indices)})")
     print(f"  defining variant: {payload['defining_variant']}")
+    print(f"  prompt text joined from {prompts_path.name}: {len(prompts)} prompts")
 
     if args.plan:
         return 0
@@ -82,7 +107,18 @@ def main() -> int:
                     "variant being compared; re-deriving the filter on new "
                     "generations yields a different set of 800 and different numbers."
                 ),
-                "keep_keys": [list(key) for key in keep],
+                # Self-contained: each entry carries the prompt text and seed
+                # needed to regenerate that exact sample.
+                "samples": [
+                    {
+                        "prompt_index": index,
+                        "seed": seed,
+                        "prompt": prompts[index]["prompt"],
+                        "source": prompts[index].get("source"),
+                        "record_id": prompts[index].get("record_id"),
+                    }
+                    for index, seed in keep
+                ],
                 "drop_keys": [list(key) for key in drop],
             },
             indent=2,
