@@ -110,3 +110,33 @@ def classifier_free_velocity(
 ) -> torch.Tensor:
     """Standard CFG combination of two velocity predictions."""
     return unconditional + guidance_scale * (conditional - unconditional)
+
+
+# FlowMatchEulerDiscreteScheduler's defaults. sigma_min is not 0: the linspace
+# runs between these, and the terminal 0 is appended afterwards.
+SIGMA_MAX = 1.0
+SIGMA_MIN = 0.0029940120875835419
+
+
+def sigma_schedule(steps: int, *, shift: float = 3.0) -> tuple[float, ...]:
+    """FlowMatch sampling sigmas, matching ``FlowMatchEulerDiscreteScheduler``.
+
+    ``steps`` transitions yield ``steps + 1`` values: ``steps`` linearly spaced
+    points from ``SIGMA_MAX`` down to ``SIGMA_MIN``, reparameterized by ``shift``,
+    with a terminal 0 appended. Reproducing the scheduler exactly matters because
+    the guidance schedule gates on sigma bands, so a different sigma grid moves
+    which steps get guided.
+
+    ``shift`` is 3.0 for SD3 and FLUX at 1024x1024; ``shift=1.0`` is unshifted.
+    """
+    if steps < 1:
+        raise ValueError(f"steps must be at least 1, got {steps}")
+    if shift <= 0:
+        raise ValueError(f"shift must be positive, got {shift}")
+    if steps == 1:
+        linear = [SIGMA_MAX]
+    else:
+        span = SIGMA_MAX - SIGMA_MIN
+        linear = [SIGMA_MAX - span * index / (steps - 1) for index in range(steps)]
+    shifted = [shift * value / (1.0 + (shift - 1.0) * value) for value in linear]
+    return tuple(shifted) + (0.0,)

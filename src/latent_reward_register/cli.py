@@ -2,6 +2,9 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
+from dataclasses import replace
+from pathlib import Path
 
 from .backbones import available_backbones
 from .checkpoint import read_legacy_checkpoint
@@ -38,10 +41,43 @@ def _validate_release(args: argparse.Namespace) -> int:
     return 0
 
 
+def _read_prompts(path: str | None, inline: list[str] | None) -> list[str]:
+    """Prompts from a file (one per line) or from --prompt flags."""
+    if inline:
+        return list(inline)
+    if not path:
+        raise ValueError("Provide prompts with --prompt-file or repeated --prompt")
+    lines = [line.strip() for line in Path(path).read_text().splitlines()]
+    prompts = [line for line in lines if line and not line.startswith("#")]
+    if not prompts:
+        raise ValueError(f"No prompts found in {path}")
+    return prompts
+
+
+def _schedule_from_config(config: dict) -> "GuidanceSchedule":
+    from .guidance import GuidanceSchedule
+
+    guidance = config.get("guidance") or {}
+    bands = guidance.get("bands")
+    if bands:
+        return GuidanceSchedule(bands=tuple((float(edge), float(scale)) for edge, scale in bands))
+    # RG-OPD presets express the same gate as a floor plus a single scale.
+    return GuidanceSchedule(
+        bands=(
+            (float(config.get("active_sigma_min", 0.2)), float(config.get("reward_scale", 0.4))),
+        )
+    )
+
+
 def _workflow_command(args: argparse.Namespace) -> int:
+    """Plan a workflow, and run it unless --dry-run.
+
+    --dry-run prints the resolved plan without touching weights, which is what
+    config validation and CI use. Without it, the run needs real assets.
+    """
     workflow = load_workflow(args.config)
     plan = workflow.plan()
-    plan["requested_inputs"] = {
+    requested = {
         key: value
         for key, value in {
             "dataset_manifest": args.dataset_manifest,
@@ -52,12 +88,123 @@ def _workflow_command(args: argparse.Namespace) -> int:
         }.items()
         if value is not None
     }
-    if not args.dry_run:
-        raise RuntimeError(
-            "Asset-backed execution is intentionally deferred; rerun with --dry-run or provide the published "
-            "checkpoint/data integration for this workflow."
+    plan["requested_inputs"] = requested
+    if args.dry_run:
+        print(json.dumps(plan, indent=2, sort_keys=True))
+        return 0
+    return _execute_workflow(args, workflow)
+
+
+def _execute_workflow(args: argparse.Namespace, workflow) -> int:
+    """Dispatch a validated workflow to its runtime, with real assets."""
+    from .local_config import load_local_config
+    from .runtime import (
+        SampleRequest,
+        TrainRegisterRequest,
+        TrainRGOPDRequest,
+        decode_latents,
+        run_register_training,
+        run_rgopd_training,
+        run_sampling,
+    )
+
+    config = load_config(args.config)
+    local = load_local_config(args.local_config)
+    if args.model_path:
+        local = replace(local, models={**local.models, workflow.backbone: args.model_path})
+    task = workflow.task
+
+    if task == "train-register":
+        manifest = args.training_manifest or args.dataset_manifest
+        if not manifest:
+            raise ValueError("train-register needs --training-manifest")
+        if not args.output_directory:
+            raise ValueError("train-register needs --output-directory")
+        register_config = dict(config["register"])
+        register_config.setdefault("revision", (config.get("backbone") or {}).get("revision", "unknown"))
+        summary = run_register_training(
+            TrainRegisterRequest(
+                backbone=workflow.backbone,
+                manifest=manifest,
+                output_directory=args.output_directory,
+                register_config=register_config,
+                train_config=config.get("train") or {},
+                group_size=args.group_size,
+                batch_size=args.batch_size,
+                max_batches=args.max_batches,
+                precision=args.precision,
+                device=args.device,
+                local_files_only=args.local_files_only,
+            ),
+            local=local,
         )
-    print(json.dumps(plan, indent=2, sort_keys=True))
+        print(json.dumps(summary, indent=2, sort_keys=True))
+        return 0
+
+    if task == "sample":
+        if not args.register_checkpoint:
+            raise ValueError("sample needs --register-checkpoint")
+        prompts = _read_prompts(args.prompt_file, args.prompt)
+        resolution = tuple(config.get("resolution", (1024, 1024)))
+        result = run_sampling(
+            SampleRequest(
+                backbone=workflow.backbone,
+                prompts=prompts,
+                steps=args.steps or int(config.get("steps", 28)),
+                resolution=resolution,
+                heads=tuple(config.get("heads", ("preference",))),
+                schedule=_schedule_from_config(config),
+                text_guidance_scale=float(config.get("text_guidance_scale", 4.5)),
+                register_checkpoint=args.register_checkpoint,
+                seed=args.seed,
+                precision=args.precision,
+                device=args.device,
+                local_files_only=args.local_files_only,
+            ),
+            local=local,
+        )
+        latents = result.pop("latents")
+        pipeline = result.pop("pipeline")
+        if args.output_directory:
+            output = Path(args.output_directory)
+            output.mkdir(parents=True, exist_ok=True)
+            images = decode_latents(
+                pipeline, latents, backbone=workflow.backbone, resolution=resolution
+            )
+            for index, image in enumerate(images):
+                image.save(output / f"{index:04d}_seed{args.seed}.png")
+            result["images_written"] = len(images)
+        result["latent_shape"] = list(latents.shape)
+        print(json.dumps(result, indent=2, sort_keys=True))
+        return 0
+
+    if not args.register_checkpoint:
+        raise ValueError("train-rgopd needs --register-checkpoint")
+    if not args.output_directory:
+        raise ValueError("train-rgopd needs --output-directory")
+    student = config.get("student") or {}
+    summary = run_rgopd_training(
+        TrainRGOPDRequest(
+            backbone=workflow.backbone,
+            prompts=_read_prompts(args.prompt_file, args.prompt),
+            register_checkpoint=args.register_checkpoint,
+            output_directory=args.output_directory,
+            schedule=_schedule_from_config(config),
+            heads=tuple(config.get("reward_heads", ("preference",))),
+            rollout_steps=int(config.get("rollout_steps", 10)),
+            optimized_steps=int(config.get("optimized_steps", 9)),
+            lora_rank=int(student.get("rank", 32)),
+            lora_alpha=int(student.get("alpha", 64)),
+            rounds=args.rounds,
+            batch_size=args.batch_size,
+            seed=args.seed,
+            precision=args.precision,
+            device=args.device,
+            local_files_only=args.local_files_only,
+        ),
+        local=local,
+    )
+    print(json.dumps(summary, indent=2, sort_keys=True))
     return 0
 
 
@@ -69,7 +216,21 @@ def _add_workflow_command(subcommands, name: str, help_text: str) -> None:
     command.add_argument("--training-manifest")
     command.add_argument("--register-checkpoint")
     command.add_argument("--prompt-file")
-    command.add_argument("--dry-run", action="store_true")
+    command.add_argument("--prompt", action="append", help="inline prompt; repeatable")
+    command.add_argument("--local-config", help="machine paths; defaults to configs/local.yaml")
+    command.add_argument("--model-path", help="override the backbone snapshot for this run")
+    command.add_argument("--precision", default="bf16", choices=("bf16", "fp16", "fp32"))
+    command.add_argument("--device", default="cuda")
+    command.add_argument("--seed", type=int, default=42)
+    command.add_argument("--steps", type=int, help="override the config's sampling steps")
+    command.add_argument("--group-size", type=int, default=4)
+    command.add_argument("--batch-size", type=int, default=1)
+    command.add_argument("--max-batches", type=int, help="stop after N batches (smoke runs)")
+    command.add_argument("--rounds", type=int, default=1, help="RG-OPD rollout rounds")
+    command.add_argument("--local-files-only", action="store_true")
+    command.add_argument(
+        "--dry-run", action="store_true", help="print the resolved plan without loading weights"
+    )
     command.set_defaults(handler=_workflow_command)
 
 
@@ -159,7 +320,13 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
-    return int(args.handler(args))
+    try:
+        return int(args.handler(args))
+    except (ValueError, FileNotFoundError, KeyError) as error:
+        # A missing asset or a bad config is user error, not a crash: a traceback
+        # here buries the one line that says what to fix.
+        print(f"error: {error}", file=sys.stderr)
+        return 2
 
 
 if __name__ == "__main__":

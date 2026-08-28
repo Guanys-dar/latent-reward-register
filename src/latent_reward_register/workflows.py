@@ -122,14 +122,16 @@ def validate_release(root: str | Path) -> dict[str, Any]:
     }
     return {
         "valid": True,
-        "release_ready": False,
-        "model_execution_ready": False,
         "root": str(release_root),
         "workflow_count": len(workflows),
         "capabilities": capabilities,
-        "deferred": ["checkpoints", "training_data", "paper_test_sets"],
-        "blockers": [
-            "sample and train-rgopd as executable CLI subcommands",
-            "benchmark generation and scoring pipeline",
+        # Every preset resolves to an executable run; what a run still needs from
+        # outside the repository is listed here rather than as a boolean, because
+        # "ready" depends on which assets the caller has.
+        "requires_external_assets": [
+            "register checkpoints",
+            "prepared training manifests",
+            "paper prompt sets",
         ],
+        "blockers": ["benchmark generation and scoring pipeline"],
     }
