@@ -1,3 +1,18 @@
+"""Reference register architecture: register tokens plus a readout, over any adapter.
+
+**This is not the production path.** Nothing here loads or produces a published
+checkpoint. It is a self-contained, weight-free implementation of the register
+idea — trainable tokens read a backbone's features, an MLP head turns them into
+a reward — and its purpose is to make the algorithm layer (training loop,
+preference scoring, RGS, RG-OPD) executable with no model weights at all. That
+is what ``lrr smoke-release`` runs, via the synthetic adapter in ``smoke.py``.
+
+For a real SD3/FLUX/Z-Image register use
+:class:`~latent_reward_register.implementations.loader.CheckpointRewardRegister`,
+built by ``backbones.build_register_from_config`` or loaded by
+``load_legacy_register``. Those models own their own backbone traversal and are
+checkpoint-compatible with the paper's weights; this class is neither.
+"""
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
@@ -11,13 +26,11 @@ from .types import RegisterCondition, RegisterOutput, RewardGradientOutput
 
 
 @dataclass(frozen=True)
-class RewardRegisterConfig:
+class ReferenceRegisterConfig:
     backbone: str
     head_names: tuple[str, ...]
     feature_layers: tuple[int, ...]
     num_register_tokens: int = 32
-    num_attention_heads: int = 8
-    pool_factor: int = 4
     hidden_factor: int = 2
 
     def to_dict(self) -> dict:
@@ -28,6 +41,8 @@ class RewardRegisterConfig:
 
 
 class RegisterReadout(nn.Module):
+    """Mean-pools the register tokens and maps them to one scalar per head."""
+
     def __init__(self, hidden_size: int, head_names: tuple[str, ...], hidden_factor: int):
         super().__init__()
         inner_size = hidden_size * hidden_factor
@@ -48,8 +63,15 @@ class RegisterReadout(nn.Module):
         return {name: head(pooled).squeeze(-1) for name, head in self.heads.items()}
 
 
-class RewardRegister(nn.Module):
-    def __init__(self, adapter: BackboneAdapter, config: RewardRegisterConfig):
+class ReferenceRewardRegister(nn.Module):
+    """Register tokens over a :class:`BackboneAdapter`, with an MLP readout.
+
+    Exposes the same scoring surface as ``CheckpointRewardRegister`` — ``score``,
+    ``score_groups``, ``score_and_grad`` — so the algorithm layer can be driven
+    without weights. See the module docstring: not checkpoint-compatible.
+    """
+
+    def __init__(self, adapter: BackboneAdapter, config: ReferenceRegisterConfig):
         super().__init__()
         if adapter.name != config.backbone:
             raise ValueError(f"Adapter {adapter.name!r} does not match checkpoint backbone {config.backbone!r}")
@@ -81,6 +103,11 @@ class RewardRegister(nn.Module):
 
         The group dimension is folded into the batch for the backbone pass and
         restored afterwards, so the pairwise loss can compare within groups.
+
+        Conditioning is expanded here, unlike ``CheckpointRewardRegister``, which
+        passes it unexpanded because the research models repeat each prompt across
+        its group internally. ``BackboneAdapter.extract_features`` does not, so
+        this path must expand it.
         """
         if latents.ndim < 3:
             raise ValueError(f"Expected (batch, group_size, ...) latents, got {tuple(latents.shape)}")
@@ -95,11 +122,6 @@ class RewardRegister(nn.Module):
             )
         scores = self.score(flat_latents, condition.expand_groups(group_size), flat_sigma)
         return {name: value.reshape(batch_size, group_size) for name, value in scores.items()}
-
-    # NOTE: CheckpointRewardRegister overrides score_groups. The research models
-    # flatten groups and repeat conditioning internally, so that path must pass
-    # conditioning unexpanded; this adapter-backed path expands it explicitly
-    # because BackboneAdapter.extract_features scores one item at a time.
 
     def score_and_grad(
         self,
@@ -124,4 +146,3 @@ class RewardRegister(nn.Module):
                 create_graph=False,
             )[0].detach()
         return RewardGradientOutput(scores={name: scores[name].detach() for name in requested}, gradients=gradients)
-

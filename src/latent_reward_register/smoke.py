@@ -1,3 +1,10 @@
+"""Asset-free integration smoke: every algorithm path, no model weights.
+
+Backs ``lrr smoke-release``. The synthetic adapter below is a stand-in with
+closed-form features, not a model: this proves the equations are wired together
+and the shapes agree end to end. It cannot prove a real backbone runs — for that
+use ``lrr build-register`` against real weights.
+"""
 from __future__ import annotations
 
 from tempfile import TemporaryDirectory
@@ -8,7 +15,7 @@ from .backbones.base import BackboneAdapter, BackboneFeatures
 from .checkpoint import CheckpointManifest
 from .guidance import GuidanceSchedule, RewardGradientGuidance
 from .preference import PreferencePairBatch, evaluate_preference_pairs
-from .register import RewardRegister, RewardRegisterConfig
+from .register import ReferenceRegisterConfig, ReferenceRewardRegister
 from .rgopd import RGOPDBatch, RGOPDTrainConfig, train_rgopd
 from .sampling import reward_guided_sample
 from .training import GroupBatch, TrainConfig, train_register
@@ -42,10 +49,10 @@ class _SyntheticStudent(torch.nn.Module):
         return latents + self.offset
 
 
-def _register() -> RewardRegister:
-    return RewardRegister(
+def _register() -> ReferenceRewardRegister:
+    return ReferenceRewardRegister(
         _SyntheticAdapter(),
-        RewardRegisterConfig(
+        ReferenceRegisterConfig(
             backbone="synthetic",
             head_names=("preference",),
             feature_layers=(0,),
@@ -75,6 +82,7 @@ def run_release_smoke() -> dict[str, str]:
             config=TrainConfig(epochs=1),
             output_dir=output_dir,
             manifest=manifest,
+            register_config=register.config.to_dict(),
         )
 
     metrics = evaluate_preference_pairs(

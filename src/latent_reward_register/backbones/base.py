@@ -1,8 +1,21 @@
+"""The feature-extraction interface behind ``ReferenceRewardRegister``.
+
+Scope warning, because the name suggests more than it delivers: no released
+SD3/FLUX/Z-Image backbone implements this. The research models are complete
+registers that own their own trunk traversal and are reached through
+``backbones.build_register`` — see ``diffusers.py`` and ``registry.py``. The only
+implementation in the tree is the synthetic adapter in ``smoke.py``.
+
+It is kept because it is the seam that makes the algorithm layer runnable with no
+weights: an adapter is the smallest thing that can stand in for a backbone, which
+is what ``lrr smoke-release`` exploits. Treat it as the test seam, not as the
+extension point for adding a real backbone.
+"""
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Any, Mapping
+from typing import Any
 
 import torch
 
@@ -18,6 +31,8 @@ class BackboneFeatures:
 
 
 class BackboneAdapter(ABC):
+    """Exposes a backbone as reward-token features plus a reference transition."""
+
     name: str
 
     @property
@@ -47,7 +62,4 @@ class BackboneAdapter(ABC):
         **kwargs: Any,
     ) -> torch.Tensor:
         raise NotImplementedError
-
-    def checkpoint_metadata(self) -> Mapping[str, Any]:
-        return {"backbone": self.name}
 

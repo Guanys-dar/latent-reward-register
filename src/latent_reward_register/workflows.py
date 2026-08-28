@@ -8,7 +8,13 @@ from .config import load_config
 
 
 _BACKBONES = {"sd3", "flux", "z-image"}
-_TASKS = {"train-register", "sample", "train-rgopd"}
+# Module backing each task. "workspace" is always the release package: a plan must
+# never name an internal experiment workspace, since a public reader cannot run it.
+_TASK_PACKAGES = {
+    "train-register": "latent_reward_register.training",
+    "sample": "latent_reward_register.sampling",
+    "train-rgopd": "latent_reward_register.rollout",
+}
 _CONFIG_GLOBS = ("configs/register/*/*.yaml", "configs/rgs/*/*.yaml", "configs/rgopd/*/*.yaml")
 
 
@@ -40,21 +46,9 @@ class WorkflowSpec:
 
 
 def _implementation(task: str) -> dict[str, str]:
-    if task == "train-register":
-        return {
-            "package": "latent_reward_register.training",
-            "entry_point": "latent_reward_register.cli train-register",
-            "workspace": "release-package",
-        }
-    if task == "sample":
-        return {
-            "package": "latent_reward_register.sampling",
-            "entry_point": "latent_reward_register.cli sample",
-            "workspace": "release-package",
-        }
     return {
-        "package": "latent_reward_register.rgopd",
-        "entry_point": "latent_reward_register.cli train-rgopd",
+        "package": _TASK_PACKAGES[task],
+        "entry_point": f"latent_reward_register.cli {task}",
         "workspace": "release-package",
     }
 
@@ -99,7 +93,7 @@ def load_workflow(path: str | Path) -> WorkflowSpec:
     workflow_path = Path(path)
     config = load_config(workflow_path)
     task = str(config.get("task", "")).strip().lower()
-    if task not in _TASKS:
+    if task not in _TASK_PACKAGES:
         raise ValueError(f"Unsupported workflow task: {task or '<missing>'}")
     raw_backbone = config.get("backbone")
     if isinstance(raw_backbone, dict):
@@ -135,9 +129,7 @@ def validate_release(root: str | Path) -> dict[str, Any]:
         "capabilities": capabilities,
         "deferred": ["checkpoints", "training_data", "paper_test_sets"],
         "blockers": [
-            "model-specific feature extraction adapters",
-            "model-specific sampler steps",
-            "Table 1 runner",
-            "SD3 and FLUX RG-OPD rollout/evaluation integration",
+            "sample and train-rgopd as executable CLI subcommands",
+            "benchmark generation and scoring pipeline",
         ],
     }

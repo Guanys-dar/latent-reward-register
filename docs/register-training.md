@@ -1,8 +1,8 @@
 # Register training
 
 The register-training seam is shared by SD3, FLUX, and Z-Image. Backbone-specific
-feature extraction stays behind the adapter/model implementation; the training
-loop consumes pair batches and writes the release checkpoint contract.
+feature extraction stays inside the model implementation; the training loop
+consumes group batches and writes the release checkpoint contract.
 
 ## Configurations
 
@@ -51,5 +51,8 @@ input raises rather than silently rescaling.
 - `latent_reward_register.data.read_group_manifest`
 - `latent_reward_register.checkpoint.save_register_checkpoint`
 
-The trainable model is expected to implement `RewardRegister.score`; the
-backbone adapter owns latent packing, conditioning, and transformer traversal.
+`train_register` needs only `score_groups`, so it drives either register class.
+For a real run that is `CheckpointRewardRegister`, whose model owns latent
+packing, conditioning, and transformer traversal. It also takes
+`register_config`: the architecture record written into the checkpoint's
+`config.yaml`, without which the checkpoint cannot be rebuilt.

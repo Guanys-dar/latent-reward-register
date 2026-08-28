@@ -17,6 +17,7 @@ from latent_reward_register.types import RegisterCondition, RewardGradientOutput
 
 from .gradmode import latent_gradient_enabled
 
+
 def _architecture_kwargs(config: dict[str, Any]) -> dict[str, Any]:
     register = config["reward_token"]
     feature_layers = register.get("feature_layers", register.get("visual_layers"))

@@ -1,3 +1,20 @@
+"""RG-OPD targets, loss, and the single-step trainer.
+
+Two trainers exist and they are not interchangeable:
+
+- :func:`latent_reward_register.rollout.train_rgopd_rollout` is **the paper
+  path**. It is on-policy: the student generates its own trajectory and targets
+  are built at the states it actually visits.
+- :func:`train_rgopd` here takes a fixed batch of ``(state, reference_next,
+  reward_gradient)`` triples and optimizes one transition each. It is off-policy
+  by construction, since whoever produced those states was not this student. It
+  is retained for ablations that need to hold the visited states fixed, and it
+  is what the asset-free smoke exercises. Reported numbers do not come from it.
+
+Both share :func:`rgopd_loss`, and both take their target from the same
+:class:`~latent_reward_register.teacher.RewardGradientTeacher` correction, so
+the two cannot disagree about what guidance is.
+"""
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -106,6 +123,12 @@ def train_rgopd(
     config: RGOPDTrainConfig,
     guidance: RewardGradientGuidance,
 ) -> RGOPDTrainMetrics:
+    """Optimize the student on pre-supplied transitions, one step per batch.
+
+    Off-policy: the states come from the caller, not from this student. For the
+    paper's on-policy training use
+    :func:`latent_reward_register.rollout.train_rgopd_rollout` instead.
+    """
     trainable = [parameter for parameter in student.parameters() if parameter.requires_grad]
     if not trainable:
         raise ValueError("RG-OPD student has no trainable parameters")

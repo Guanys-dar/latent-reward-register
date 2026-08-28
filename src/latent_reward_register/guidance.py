@@ -85,7 +85,3 @@ class RewardGradientGuidance:
             clipped=clipped.detach(),
         )
         return correction, diagnostics
-
-    def guided_step(self, **kwargs) -> tuple[torch.Tensor, GuidanceDiagnostics]:
-        correction, diagnostics = self.correction(**kwargs)
-        return kwargs["base_next"] + correction, diagnostics

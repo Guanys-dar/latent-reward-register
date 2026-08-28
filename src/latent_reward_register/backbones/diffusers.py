@@ -1,15 +1,11 @@
 """Model-backed register builders for SD3, FLUX, and Z-Image.
 
-The research implementations under ``implementations/`` are complete reward
-registers: each owns its backbone traversal, latent packing, conditioning, and
-reward-token side stream, and returns ``dict[head -> (batch, group_size)]``.
-They are therefore wired as registers rather than as feature extractors behind
-``BackboneAdapter``.
-
-An earlier revision declared ``SD3Adapter``/``FluxAdapter``/``ZImageAdapter``
-that looked up ``feature_extractor`` and ``sampler_step`` attributes which were
-never assigned anywhere, so every call raised. Those stubs are gone; the
-builders below reach the real implementations.
+This is the production path. The research implementations under
+``implementations/`` are complete reward registers: each owns its backbone
+traversal, latent packing, conditioning, and reward-token side stream, and
+returns ``dict[head -> (batch, group_size)]``. They are therefore wired as
+registers, not as feature extractors behind ``BackboneAdapter`` — do not try to
+route a real backbone through that interface.
 """
 from __future__ import annotations
 
@@ -19,7 +15,7 @@ import torch
 
 from latent_reward_register.implementations.loader import CheckpointRewardRegister
 
-from .registry import register_backbone
+from .registry import normalize_backbone_name, register_backbone
 
 # Default pipeline identifiers. Point these at local snapshots via config when
 # running offline.
@@ -122,7 +118,7 @@ def build_register_from_config(config: Mapping[str, Any], **overrides: Any) -> C
         if key not in known and key != "architecture"
     }
     return build_register(
-        str(backbone_config.get("name", "")).strip().lower(),
+        normalize_backbone_name(str(backbone_config.get("name", ""))),
         head_names=tuple(register_config["head_names"]),
         feature_layers=tuple(register_config["feature_layers"]),
         text_layers=tuple(register_config["text_layers"]) if register_config.get("text_layers") else None,

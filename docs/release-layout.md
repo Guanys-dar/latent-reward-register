@@ -6,14 +6,19 @@ configs/
   rgs/{sd3,flux}/                    sampling presets
   rgopd/{sd3,flux}/                  OPD presets
 src/latent_reward_register/
-  backbones/                        adapter interfaces and registry
+  backbones/                        model-backed register builders and registry
   implementations/                  consolidated research model ports
   training.py                       shared register training loop
   sampling.py                       shared RGS loop
-  rgopd.py                          shared RG-OPD target/loss/trainer
+  rgopd.py                          RG-OPD target/loss + off-policy trainer
+  rollout.py                        on-policy RG-OPD driver (the paper path)
+  flowmatch.py                      frozen FlowMatch Euler transitions
+  velocity.py                       SD3/FLUX velocity models and LoRA student
+  table1.py                         Table 1 preference-accuracy evaluator
   preference.py                     pairwise preference evaluator
   teacher.py                        reward-gradient teacher (RGS + RG-OPD)
   gradmode via implementations/     latent-gradient scoring mode
+  register.py                       weight-free reference register (smoke only)
   smoke.py                          asset-free integration smoke
   workflows.py                      config validation and release plans
   checkpoint.py                     portable checkpoint contract

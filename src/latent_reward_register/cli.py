@@ -111,6 +111,11 @@ def _build_register(args: argparse.Namespace) -> int:
     return 0
 
 
+def _list_backbones(_: argparse.Namespace) -> int:
+    print("\n".join(available_backbones()))
+    return 0
+
+
 def _smoke_release(_: argparse.Namespace) -> int:
     from .smoke import run_release_smoke
 
@@ -129,7 +134,7 @@ def build_parser() -> argparse.ArgumentParser:
     inspect_checkpoint.add_argument("checkpoint")
     inspect_checkpoint.set_defaults(handler=_inspect_checkpoint)
     backbones = subcommands.add_parser("list-backbones")
-    backbones.set_defaults(handler=lambda _: print("\n".join(available_backbones())) or 0)
+    backbones.set_defaults(handler=_list_backbones)
     plan = subcommands.add_parser("plan", help="validate a workflow config and print its runtime inputs")
     plan.add_argument("config")
     plan.set_defaults(handler=_plan)

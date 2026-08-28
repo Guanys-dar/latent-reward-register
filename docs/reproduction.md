@@ -9,7 +9,7 @@
 | Reward gradients | verified | none |
 | Guidance schedule and teacher | in repo | none |
 | RGS trajectories | loop in repo | published register checkpoints |
-| RG-OPD targets and loss | in repo | rollout driver, checkpoints |
+| RG-OPD targets, loss, rollout driver | in repo | checkpoints |
 | Table 1 preference accuracy | evaluator in repo | pair file and images |
 | Table 2 / Table 3 generation and scoring | not in repo | generation + scoring pipeline, prompt sets |
 

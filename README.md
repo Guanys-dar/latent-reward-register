@@ -113,15 +113,36 @@ pairs contribute — so a flat list of preference pairs is not a substitute. See
 Training reads cached latents and prompt embeddings, never images: no VAE or
 text encoder runs during training.
 
+## Entry points
+
+Two register classes exist and the distinction matters:
+
+| | Class | Use |
+| --- | --- | --- |
+| Real weights | `CheckpointRewardRegister` | `load_legacy_register`, `build_register_from_config` |
+| No weights | `ReferenceRewardRegister` | the `smoke-release` scaffold only |
+
+`ReferenceRewardRegister` is not checkpoint-compatible with the paper's weights.
+It exists so the training loop, preference scoring, RGS, and RG-OPD can run on a
+synthetic backbone with nothing downloaded. Reach for `CheckpointRewardRegister`
+for anything real.
+
+RG-OPD likewise has two trainers: `train_rgopd_rollout` is the paper path
+(on-policy, the student walks its own trajectory), and `train_rgopd` is an
+off-policy single-step trainer kept for ablations.
+
 ## Status
 
 Runnable: register construction for all three backbones, group-level training
 loss, preference scoring, reward gradients, the guidance schedule and teacher,
-the RGS loop, and RG-OPD targets and loss.
+the RGS loop, RG-OPD targets and loss, the on-policy rollout driver, the
+FlowMatch Euler transitions, the SD3/FLUX velocity models and LoRA student, and
+the Table 1 evaluator.
 
-Not yet included: the RG-OPD rollout driver, the benchmark generation and
-scoring pipeline, published checkpoints, and the paper prompt sets. Model
-weights and datasets are not distributed here; see NOTICE.
+Not yet included: the benchmark generation and scoring pipeline, and `sample` /
+`train-rgopd` as executable CLI subcommands (the Python API is complete; those
+still refuse without `--dry-run`). Model weights, checkpoints, and the paper
+prompt sets are not distributed here; see NOTICE.
 
 ## Documentation
 

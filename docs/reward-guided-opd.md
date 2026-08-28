@@ -18,7 +18,9 @@ This is one implementation on purpose. If RG-OPD recomputed the correction
 itself, the student could be trained against guidance the sampler does not
 apply, and the two would drift silently.
 
-`rollout_target` is the RG-OPD entry point:
+`rollout_target` builds the target for a single visited state. The rollout
+driver below is what a run calls; this is the seam to reach for when writing an
+ablation that steps the trajectory itself:
 
 ```python
 step = rollout_target(
@@ -89,6 +91,13 @@ transition is rolled out but not optimized.
 
 ## What remains
 
-The backbone sampler step - the frozen FlowMatch Euler transition that
-`reference_step` and the student wrap - is not yet extracted from the research
-sampler. Everything above it is in the release and covered by tests.
+The algorithm layer is complete and covered by tests, down to the backbone:
+`flowmatch.py` provides the frozen FlowMatch Euler transition that
+`reference_step` and the student wrap, `velocity.py` supplies the SD3 and FLUX
+velocity models it takes as a callable, and `attach_lora_student` builds the
+rank-32 / alpha-64 student. A CPU test drives
+velocity -> flowmatch -> teacher -> rollout end to end.
+
+Still outside the release: the `train-rgopd` CLI subcommand refuses without
+`--dry-run`, so a paper run goes through the Python API above, and neither the
+published teacher registers nor the prompt sets are distributed here.

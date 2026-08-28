@@ -24,7 +24,7 @@ from typing import Callable, Iterator, Mapping, Sequence
 
 import torch
 
-from .preference import PreferencePairBatch, evaluate_preference_pairs
+from .preference import PreferenceMetrics, PreferencePairBatch, evaluate_preference_pairs
 from .types import RegisterCondition
 
 # Every released pair carries these; anything else is provenance.
@@ -83,6 +83,22 @@ def read_pair_file(path: str | Path) -> Iterator[PreferencePair]:
                 raise ValueError(f"Invalid pair at {pair_path}:{line_number}: {error}") from error
 
 
+def _exchange_sides(pair: PreferencePair) -> PreferencePair:
+    """One pair with its images exchanged and its label moved to match.
+
+    Both must move together: exchanging the images while leaving ``preferred``
+    alone would relabel the pair rather than reorder it.
+    """
+    return PreferencePair(
+        pair_id=pair.pair_id,
+        dataset=pair.dataset,
+        prompt=pair.prompt,
+        image1=pair.image2,
+        image2=pair.image1,
+        preferred=1 - pair.preferred,
+    )
+
+
 def shuffled(pairs: Sequence[PreferencePair], *, seed: int = 0) -> list[PreferencePair]:
     """Randomize which side holds the preferred image.
 
@@ -90,37 +106,12 @@ def shuffled(pairs: Sequence[PreferencePair], *, seed: int = 0) -> list[Preferen
     cannot distinguish a real register from a constant "first" answer.
     """
     generator = random.Random(seed)
-    result = []
-    for pair in pairs:
-        if generator.random() < 0.5:
-            result.append(pair)
-        else:
-            result.append(
-                PreferencePair(
-                    pair_id=pair.pair_id,
-                    dataset=pair.dataset,
-                    prompt=pair.prompt,
-                    image1=pair.image2,
-                    image2=pair.image1,
-                    preferred=1 - pair.preferred,
-                )
-            )
-    return result
+    return [pair if generator.random() < 0.5 else _exchange_sides(pair) for pair in pairs]
 
 
 def swapped(pairs: Sequence[PreferencePair]) -> list[PreferencePair]:
     """Every pair with its two sides exchanged."""
-    return [
-        PreferencePair(
-            pair_id=pair.pair_id,
-            dataset=pair.dataset,
-            prompt=pair.prompt,
-            image1=pair.image2,
-            image2=pair.image1,
-            preferred=1 - pair.preferred,
-        )
-        for pair in pairs
-    ]
+    return [_exchange_sides(pair) for pair in pairs]
 
 
 def missing_images(pairs: Sequence[PreferencePair], roots: Mapping[str, Path]) -> list[str]:
@@ -135,6 +126,23 @@ def missing_images(pairs: Sequence[PreferencePair], roots: Mapping[str, Path]) -
             if not path.exists():
                 absent.append(str(path))
     return absent
+
+
+@dataclass
+class _Tally:
+    """Running (correct, total, ties) for one dataset."""
+
+    correct: int = 0
+    total: int = 0
+    ties: int = 0
+
+    def add(self, metrics: PreferenceMetrics) -> None:
+        self.correct += metrics.correct
+        self.total += metrics.total
+        self.ties += metrics.ties
+
+    def as_tuple(self) -> tuple[int, int, int]:
+        return self.correct, self.total, self.ties
 
 
 @dataclass(frozen=True)
@@ -194,8 +202,8 @@ def evaluate_table1(
     if batch_size < 1:
         raise ValueError(f"batch_size must be positive, got {batch_size}")
 
-    tallies: dict[str, list[int]] = collections.defaultdict(lambda: [0, 0, 0])
-    overall = [0, 0, 0]
+    tallies: dict[str, _Tally] = collections.defaultdict(_Tally)
+    overall = _Tally()
 
     by_dataset: dict[str, list[PreferencePair]] = collections.defaultdict(list)
     for pair in pairs:
@@ -203,9 +211,8 @@ def evaluate_table1(
 
     for dataset, group in by_dataset.items():
         for start in range(0, len(group), batch_size):
-            chunk = group[start : start + batch_size]
             batches = []
-            for pair in chunk:
+            for pair in group[start : start + batch_size]:
                 first, second, condition, sigma = encode(pair)
                 batches.append(
                     PreferencePairBatch(
@@ -217,20 +224,17 @@ def evaluate_table1(
                     )
                 )
             metrics = evaluate_preference_pairs(register, batches, head=head)
-            tallies[dataset][0] += metrics.correct
-            tallies[dataset][1] += metrics.total
-            tallies[dataset][2] += metrics.ties
-            overall[0] += metrics.correct
-            overall[1] += metrics.total
-            overall[2] += metrics.ties
+            tallies[dataset].add(metrics)
+            overall.add(metrics)
 
     return Table1Report(
         head=head,
-        overall_correct=overall[0],
-        overall_total=overall[1],
-        overall_ties=overall[2],
-        per_dataset={name: tuple(values) for name, values in tallies.items()},
+        overall_correct=overall.correct,
+        overall_total=overall.total,
+        overall_ties=overall.ties,
+        per_dataset={name: tally.as_tuple() for name, tally in tallies.items()},
     )
+
 
 def position_bias(
     register,
