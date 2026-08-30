@@ -2,6 +2,7 @@ task: train-rgopd
 backbone: sd3
 rollout_steps: 10
 optimized_steps: 9
+rollout_batches_per_update: 4
 student: {adaptation: lora, rank: 32, alpha: 64}
 reward_heads: [preference]
 # Teacher register: exp11 EMA (SD3). RG-OPD was run against the exp11 register,
@@ -10,4 +11,3 @@ teacher_register: exp11_ema
 reward_scale: 0.40
 active_sigma_min: 0.2
 anchor: frozen_reference
-

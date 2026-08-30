@@ -2,6 +2,7 @@ task: train-rgopd
 backbone: flux
 rollout_steps: 10
 optimized_steps: 9
+rollout_batches_per_update: 4
 student: {adaptation: lora, rank: 32, alpha: 64}
 reward_heads: [preference]
 # Teacher register: unified_v3 EMA final (NOT exp11 -- the FLUX RG-OPD config
@@ -11,4 +12,3 @@ teacher_register: unified_v3_ema_final
 reward_scale: 0.80
 active_sigma_min: 0.2
 anchor: frozen_reference
-

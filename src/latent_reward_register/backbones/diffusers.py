@@ -51,6 +51,7 @@ def build_register(
     head_names: tuple[str, ...],
     feature_layers: tuple[int, ...],
     model_name_or_path: str | None = None,
+    revision: str | None = None,
     text_layers: tuple[int, ...] | None = None,
     num_transformer_layers: int | None = None,
     dtype: torch.dtype = torch.bfloat16,
@@ -82,6 +83,8 @@ def build_register(
 
     path = model_name_or_path or DEFAULT_MODELS[backbone]
     backbone_kwargs = {"torch_dtype": dtype, "local_files_only": local_files_only}
+    if revision and revision != "unknown":
+        backbone_kwargs["revision"] = revision
     shared = {
         "head_names": tuple(head_names),
         "visual_layers": tuple(feature_layers),
@@ -125,6 +128,7 @@ def build_register_from_config(config: Mapping[str, Any], **overrides: Any) -> C
         text_layers=tuple(register_config["text_layers"]) if register_config.get("text_layers") else None,
         num_transformer_layers=register_config.get("num_transformer_layers"),
         model_name_or_path=backbone_config.get("model_name_or_path"),
+        revision=backbone_config.get("revision"),
         **{**passthrough, **overrides},
     )
 

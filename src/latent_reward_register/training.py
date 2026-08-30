@@ -59,6 +59,8 @@ class TrainConfig:
     min_target_gap: float = 0.0
     warmup_steps: int = 0
     gradient_accumulation_steps: int = 1
+    weighting_scheme: str = "uniform"
+    share_noise_within_group: bool = True
 
 
 class EMA:
@@ -104,7 +106,7 @@ def _move_batch(batch: GroupBatch, device: torch.device) -> GroupBatch:
 
 
 def _noise_batch(
-    model: torch.nn.Module, batch: GroupBatch
+    model: torch.nn.Module, batch: GroupBatch, config: TrainConfig
 ) -> GroupBatch | tuple[GroupBatch, torch.Tensor]:
     research_model = getattr(model, "model", model)
     backbone = getattr(research_model, "backbone", None)
@@ -115,9 +117,13 @@ def _noise_batch(
         device=batch.latents.device,
         n_dim=batch.latents.ndim,
         dtype=batch.latents.dtype,
-        weighting_scheme="uniform",
+        weighting_scheme=config.weighting_scheme,
     )
-    noise = torch.randn_like(batch.latents[:, :1]).expand_as(batch.latents)
+    noise = (
+        torch.randn_like(batch.latents[:, :1]).expand_as(batch.latents)
+        if config.share_noise_within_group
+        else torch.randn_like(batch.latents)
+    )
     noisy_latents = backbone.add_noise(batch.latents, noise, sigmas)
     loss_sigmas = sigmas.reshape(sigmas.shape[0], -1)[:, 0]
     return GroupBatch(
@@ -162,7 +168,7 @@ def train_register(
         pending = 0
         for batch in epoch_batches:
             batch = _move_batch(batch, _model_device(model))
-            prepared = _noise_batch(model, batch)
+            prepared = _noise_batch(model, batch, config)
             if isinstance(prepared, tuple):
                 batch, timesteps = prepared
             else:
@@ -186,6 +192,10 @@ def train_register(
                 ema.update(model)
                 pending = 0
         if pending:
+            correction = config.gradient_accumulation_steps / pending
+            for parameter in trainable:
+                if parameter.grad is not None:
+                    parameter.grad.mul_(correction)
             torch.nn.utils.clip_grad_norm_(trainable, config.max_grad_norm)
             optimizer.step()
             scheduler.step()

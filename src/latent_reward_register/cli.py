@@ -161,6 +161,7 @@ def _execute_workflow(args: argparse.Namespace, workflow) -> int:
             lora_rank=int(student.get("rank", 32)),
             lora_alpha=int(student.get("alpha", 64)),
             rounds=args.rounds,
+            rollout_batches_per_update=int(config.get("rollout_batches_per_update", 4)),
             batch_size=args.batch_size,
             seed=args.seed,
             precision=args.precision,

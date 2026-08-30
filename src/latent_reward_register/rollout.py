@@ -113,6 +113,9 @@ def train_rgopd_rollout(
     optimizer: torch.optim.Optimizer,
     max_grad_norm: float = 1.0,
     parameters: Sequence[torch.nn.Parameter] | None = None,
+    reset_gradients: bool = True,
+    optimizer_step: bool = True,
+    loss_scale: float = 1.0,
 ) -> RolloutTrace:
     """Train a student against guided targets along its own trajectories.
 
@@ -126,7 +129,8 @@ def train_rgopd_rollout(
         raise ValueError("RG-OPD student has no trainable parameters")
 
     trace = RolloutTrace()
-    optimizer.zero_grad(set_to_none=True)
+    if reset_gradients:
+        optimizer.zero_grad(set_to_none=True)
     optimized_count = len(initial_latents) * sum(
         config.optimizes(index) for index in range(config.steps)
     )
@@ -158,7 +162,7 @@ def train_rgopd_rollout(
             student_next, transition_std = student(state, condition, sigma, next_sigma)
             loss = rgopd_loss(student_next, step.guided_next, transition_std)
 
-            (loss / optimized_count).backward()
+            (loss * loss_scale / optimized_count).backward()
 
             trace.steps += 1
             trace.guided_steps += int(step.applied)
@@ -167,6 +171,7 @@ def train_rgopd_rollout(
 
     if trace.steps == 0:
         raise ValueError("RG-OPD rollout optimized no steps: check sigmas and optimized_steps")
-    torch.nn.utils.clip_grad_norm_(trainable, max_grad_norm)
-    optimizer.step()
+    if optimizer_step:
+        torch.nn.utils.clip_grad_norm_(trainable, max_grad_norm)
+        optimizer.step()
     return trace
