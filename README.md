@@ -24,6 +24,9 @@ or velocity field.
 The resulting dense, differentiable reward field supports two alignment
 strategies:
 
+**RG-OPD is a training-time alignment method, whereas RGS is training-free and
+operates entirely at inference time.**
+
 - **Reward-Gradient On-Policy Distillation (RG-OPD)** builds per-step targets at
   the states visited by the current generator, avoiding rollout-intensive
   policy-gradient optimization.
