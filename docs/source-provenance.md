@@ -26,6 +26,29 @@ are untouched, which is what keeps the published checkpoints loadable.
 The pos-embed helper in `latent_reward_grid.py` keeps its literal
 `torch.no_grad()`: it slices a constant table and is not on the latent path.
 
+### Per-file origin
+
+Every vendored module came from one directory, so the mapping is by filename.
+Four of the ten carry no in-file source note; they are pinned by checksum, and
+adding a header now would invalidate the manifest without changing any code, so
+the mapping is recorded here instead.
+
+| Released path (under `implementations/`) | Origin |
+| --- | --- |
+| `models/backbone.py` | `z-image-reward-matrix` → `node5/src/sd3_reward/models/backbone.py` |
+| `models/latent_reward_grid.py` | same directory, `latent_reward_grid.py` |
+| `models/pooling.py` | same directory, `pooling.py` |
+| `models/reward_token_dina_head.py` | same directory, `reward_token_dina_head.py` |
+| `models/flux_backbone.py` | same directory, `flux_backbone.py` |
+| `models/flux_latent_reward_grid.py` | same directory, `flux_latent_reward_grid.py` |
+| `models/zimage_backbone.py` | same directory, `zimage_backbone.py` |
+| `models/zimage_latent_reward_grid.py` | same directory, `zimage_latent_reward_grid.py` |
+| `flux_common.py` | `node5/src` helper shared by the FLUX paths |
+| `zimage_common.py` | `node5/src` helper shared by the Z-Image paths |
+
+The research package is named `sd3_reward` for all three backbones; the name is
+historical and does not mean a file is SD3-only.
+
 `docs/IMPLEMENTATION_SHA256SUMS` pins the released bytes of all ten vendored
 modules, and `tests/test_implementation_checksums.py` verifies both the digests
 and that the manifest covers every vendored file. It does not prove the port was
