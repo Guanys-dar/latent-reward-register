@@ -1,4 +1,4 @@
-<h1 align="center">Latent Reward Registers</h1>
+<h1 align="center">Latent Reward Registers for Diffusion Preference Alignment</h1>
 
 <p align="center">
   <a href="https://arxiv.org/abs/2608.03929"><img src="https://img.shields.io/badge/arXiv-2608.03929-b31b1b.svg" alt="arXiv"></a>
@@ -8,6 +8,9 @@
 </p>
 
 <p align="center"><strong>To be submitted to ICLR 2027.</strong></p>
+
+**We propose building visual reward models directly on visual generators,
+enabling reward modeling to benefit from generative scaling.**
 
 Diffusion alignment usually scores only the final image, leaving every earlier
 denoising step with a difficult temporal credit-assignment problem. **Latent
