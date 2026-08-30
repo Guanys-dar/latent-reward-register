@@ -10,10 +10,10 @@
 <p align="center"><strong>To be submitted to ICLR 2027.</strong></p>
 
 Diffusion alignment typically scores only the final image, so every intermediate
-denoising step faces a difficult temporal credit-assignment problem. We propose
+denoising step faces a difficult temporal credit-assignment problem. **We propose
 that visual reward models can be built directly on visual generators, enabling
 them to provide reliable per-step latent reward signals and to benefit from the
-scaling of visual generation.
+scaling of visual generation.**
 
 **Latent Reward Registers (LRR)** estimate the endpoint reward directly from
 intermediate noisy latents. LRR adds learnable, position-free register tokens to
