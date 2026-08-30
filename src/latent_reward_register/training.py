@@ -6,9 +6,10 @@ model-backed ``CheckpointRewardRegister`` and the weight-free
 """
 from __future__ import annotations
 
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Iterable, Mapping, Protocol
+from typing import Any, Protocol
 
 import torch
 from torch.optim import AdamW

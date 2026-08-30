@@ -8,9 +8,9 @@ from .registry import (
 )
 
 __all__ = [
+    "DEFAULT_MODELS",
     "BackboneAdapter",
     "BackboneFeatures",
-    "DEFAULT_MODELS",
     "available_backbones",
     "build_register",
     "build_register_from_config",

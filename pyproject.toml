@@ -10,20 +10,24 @@ readme = "README.md"
 requires-python = ">=3.10"
 license = {text = "Apache-2.0"}
 dependencies = [
-  "pyyaml>=6",
-  "safetensors>=0.4",
-  "torch>=2.4",
+  "pyyaml>=6,<7",
+  "safetensors>=0.4,<0.6",
+  "torch>=2.4,<2.7",
 ]
 
 [project.optional-dependencies]
-dev = ["pytest>=8", "ruff>=0.9"]
+dev = ["pytest>=8,<9", "ruff>=0.9,<0.13"]
+# Upper bounds are deliberate. The register implementations read the internal
+# attribute layout of the SD3/FLUX/Z-Image transformer blocks, so a major
+# diffusers or transformers release can change numerics without any error. The
+# diffusers revision is pinned exactly for the same reason.
 models = [
-  "accelerate>=0.31",
+  "accelerate>=0.31,<2",
   "diffusers @ git+https://github.com/huggingface/diffusers.git@c8c84018e",
-  "numpy>=1.26",
-  "peft>=0.17",
-  "pillow>=10",
-  "transformers>=4.41",
+  "numpy>=1.26,<3",
+  "peft>=0.15,<0.18",
+  "pillow>=10,<12",
+  "transformers>=4.41,<5",
 ]
 tracking = ["swanlab", "wandb"]
 
@@ -39,3 +43,25 @@ markers = ["gpu: requires a CUDA GPU and model weights"]
 
 [tool.ruff]
 line-length = 119
+# The vendored research implementations are pinned byte-for-byte by
+# docs/IMPLEMENTATION_SHA256SUMS. Linting them would demand edits that break that
+# manifest and, with it, the claim that the released architecture is the one that
+# produced the paper's numbers.
+extend-exclude = ["src/latent_reward_register/implementations/models", "src/latent_reward_register/implementations/flux_common.py", "src/latent_reward_register/implementations/zimage_common.py"]
+
+[tool.ruff.lint]
+extend-select = ["I", "UP", "SIM"]
+ignore = [
+  # Malformed config is user error, not a type error: the CLI catches ValueError
+  # to print one clean line instead of a traceback.
+  "TRY004",
+  # __all__ is grouped by purpose (registers, guidance, sampling, evaluation) so a
+  # reader can find an entry point; alphabetical order would scatter those groups.
+  "RUF022",
+  # zip(values[:-1], values[1:]) reads as "consecutive sigma pairs" at the call
+  # sites; itertools.pairwise hides which sequence is being stepped through.
+  "RUF007",
+  # The if/else forms flagged here name the fallback explicitly, which a ternary
+  # buries mid-expression.
+  "SIM108",
+]

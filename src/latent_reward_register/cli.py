@@ -54,7 +54,8 @@ def _read_prompts(path: str | None, inline: list[str] | None) -> list[str]:
     return prompts
 
 
-def _schedule_from_config(config: dict) -> "GuidanceSchedule":
+def _schedule_from_config(config: dict):
+    """The guidance gate for a task config, in either of the two shapes presets use."""
     from .guidance import GuidanceSchedule
 
     guidance = config.get("guidance") or {}

@@ -11,9 +11,10 @@ Nothing here is needed to read the algorithms. Start at ``sampling.py`` or
 """
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any
 
 import torch
 

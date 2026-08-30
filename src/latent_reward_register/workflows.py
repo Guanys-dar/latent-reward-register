@@ -6,7 +6,6 @@ from typing import Any
 
 from .config import load_config
 
-
 _BACKBONES = {"sd3", "flux", "z-image"}
 # Module backing each task. "workspace" is always the release package: a plan must
 # never name an internal experiment workspace, since a public reader cannot run it.

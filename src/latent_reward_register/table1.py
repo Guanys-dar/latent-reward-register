@@ -18,9 +18,9 @@ from __future__ import annotations
 import collections
 import json
 import random
+from collections.abc import Callable, Iterator, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable, Iterator, Mapping, Sequence
 
 import torch
 
@@ -43,7 +43,7 @@ class PreferencePair:
     preferred: int
 
     @classmethod
-    def from_mapping(cls, payload: Mapping[str, object]) -> "PreferencePair":
+    def from_mapping(cls, payload: Mapping[str, object]) -> PreferencePair:
         missing = [key for key in REQUIRED_FIELDS if key not in payload]
         if missing:
             raise ValueError(f"Pair record missing fields: {', '.join(missing)}")

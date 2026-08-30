@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Iterator, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Iterator, Mapping, Sequence
+from typing import Any
 
 # Score key for each reward head. Order is positional: the loss aligns
 # targets[:, h] with head_names[h], so these must stay parallel.
@@ -24,7 +25,7 @@ class ImageRecord:
     image_path: str | None = None
 
     @classmethod
-    def from_mapping(cls, payload: Mapping[str, Any]) -> "ImageRecord":
+    def from_mapping(cls, payload: Mapping[str, Any]) -> ImageRecord:
         for key in ("sample_id", "latent_x0_path"):
             if key not in payload:
                 raise ValueError(f"Image record missing field: {key}")
@@ -63,7 +64,7 @@ class GroupRecord:
     pooled_prompt_embeds_path: str | None = None
 
     @classmethod
-    def from_mapping(cls, payload: Mapping[str, Any]) -> "GroupRecord":
+    def from_mapping(cls, payload: Mapping[str, Any]) -> GroupRecord:
         required = ("group_id", "prompt", "prompt_embeds_path", "image_records")
         missing = [key for key in required if key not in payload]
         if missing:

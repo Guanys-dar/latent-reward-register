@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass, field
-from typing import Any, Mapping
+from typing import Any
 
 import torch
 
@@ -13,7 +14,7 @@ class RegisterCondition:
     attention_mask: torch.Tensor | None = None
     metadata: Mapping[str, Any] = field(default_factory=dict)
 
-    def expand_groups(self, group_size: int) -> "RegisterCondition":
+    def expand_groups(self, group_size: int) -> RegisterCondition:
         """Repeat each prompt ``group_size`` times to match flattened group latents.
 
         One prompt conditions every image in its group, so the conditioning is

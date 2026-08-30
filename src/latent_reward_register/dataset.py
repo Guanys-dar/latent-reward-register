@@ -17,9 +17,9 @@ Two invariants are enforced here rather than left to fail later:
 """
 from __future__ import annotations
 
+from collections.abc import Iterator, Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterator, Sequence
 
 import torch
 

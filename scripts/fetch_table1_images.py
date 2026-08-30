@@ -73,7 +73,9 @@ def download(root: Path) -> int:
             "--local-dir", str(target),
         ]
         print(" ".join(command))
-        if subprocess.run(command).returncode != 0:
+        # check=False: a gated dataset is an expected outcome, collected and
+        # reported at the end rather than aborting the other downloads.
+        if subprocess.run(command, check=False).returncode != 0:
             failed.append(dataset)
 
     if failed:

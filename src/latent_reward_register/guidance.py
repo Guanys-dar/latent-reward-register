@@ -1,7 +1,7 @@
 from __future__ import annotations
 
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from typing import Mapping, Sequence
 
 import torch
 
@@ -37,7 +37,7 @@ class GuidanceSchedule:
         return 0.0
 
     @classmethod
-    def from_pairs(cls, pairs: Sequence[Sequence[float]]) -> "GuidanceSchedule":
+    def from_pairs(cls, pairs: Sequence[Sequence[float]]) -> GuidanceSchedule:
         return cls(tuple((float(threshold), float(scale)) for threshold, scale in pairs))
 
 

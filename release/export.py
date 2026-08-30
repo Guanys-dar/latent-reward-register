@@ -76,6 +76,9 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--out", required=True, type=Path)
     parser.add_argument("--check", action="store_true", help="scan only; write nothing")
+    parser.add_argument(
+        "--force", action="store_true", help="replace --out even if it holds unrelated files"
+    )
     args = parser.parse_args()
 
     patterns = load_patterns()
@@ -96,6 +99,18 @@ def main() -> int:
         return 0
 
     if args.out.exists():
+        # A wrong --out would otherwise delete whatever it points at. Only a
+        # directory this script produced before, or an empty one, is safe to
+        # replace; anything else needs --force so the deletion is deliberate.
+        existing = [path for path in args.out.iterdir()]
+        looks_exported = (args.out / "src" / "latent_reward_register").is_dir()
+        if existing and not looks_exported and not args.force:
+            print(
+                f"REFUSING to overwrite {args.out}: not empty and does not look like a "
+                "previous export. Pass --force to replace it anyway.",
+                file=sys.stderr,
+            )
+            return 1
         shutil.rmtree(args.out)
     for relative in exported:
         target = args.out / relative

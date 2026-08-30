@@ -22,53 +22,88 @@ downstream evaluation or distillation consumes the Z-Image register.
 ## Install
 
 ```bash
-pip install -e '.[dev]'          # algorithms, configs, tests (CPU)
-pip install -e '.[dev,models]'   # add model-backed registers
+conda create -n lrr python=3.11 && conda activate lrr
+pip install -e '.[dev,models]'
 ```
 
-The `models` extra pins an exact diffusers revision. That pin is load-bearing,
-not cosmetic: the register implementations read the internal attribute layout of
-the SD3/FLUX/Z-Image transformer blocks, and upstream is actively refactoring
-attention. A version bump can change numerics silently.
+Use `pip install -e '.[dev]'` for the algorithms, configs, and CPU tests alone.
+The `models` extra pins an exact diffusers revision, and that pin is
+load-bearing, not cosmetic: the register implementations read the internal
+attribute layout of the SD3/FLUX/Z-Image transformer blocks, and upstream is
+actively refactoring attention. A version bump can change numerics silently.
 
-## Check the install
+Check the install without downloading any weights:
 
 ```bash
-lrr smoke-release                    # every algorithm path, no weights needed
-lrr validate-release --root .        # all seven workflow presets
-pytest -q
+bash scripts/smoke_all.sh
 ```
 
-`smoke-release` runs on a synthetic backbone. It proves the equations are wired
-correctly; it does not prove a real model runs. For that:
+## Machine paths
+
+Copy the example and fill in where your data and models live:
+
+```bash
+cp configs/local.yaml.example configs/local.yaml
+```
+
+`configs/local.yaml` is never committed. Keeping machine paths there is what lets
+every other file in this repository stay identical across copies of it.
+
+## Run it
+
+Each task has a launch script, and every flag it passes can be given to `lrr`
+directly. Add `--dry-run` to any command to print the resolved plan without
+loading weights.
+
+**Reward-guided sampling** — the register steers a frozen sampler:
+
+```bash
+CHECKPOINT=/path/to/sd3-register.pt PROMPTS=prompts.txt bash scripts/sample_sd3.sh
+```
+
+Writes PNGs to `outputs/rgs_sd3` and reports the guidance fraction — how much of
+the trajectory was actually steered. FLUX: `scripts/sample_flux.sh`.
+
+**Register training** — needs a prepared group manifest (`docs/data-format.md`):
+
+```bash
+MANIFEST=/path/to/groups.jsonl bash scripts/train_register_sd3.sh
+```
+
+**RG-OPD** — distill the guided sampler into a LoRA student:
+
+```bash
+CHECKPOINT=/path/to/teacher-register.pt PROMPTS=prompts.txt \
+    bash scripts/train_rgopd_sd3.sh
+```
+
+Add `--max-batches 4` or `--rounds 1` for a reduced-scale run that exercises the
+real path in minutes rather than hours.
+
+To confirm a real model builds before committing to a long run:
 
 ```bash
 lrr build-register --config configs/register/sd3/paper.yaml \
-    --model-path /path/to/stable-diffusion-3-medium-diffusers \
-    --precision fp32 --local-files-only
+    --model-path /path/to/stable-diffusion-3-medium-diffusers --precision fp32
 ```
 
 SD3 should report **147,599,619 trainable parameters**, matching the exp11
 training log. A different number means the architecture has drifted from the
 paper baseline.
 
-## Reward gradients
+## What you need from elsewhere
 
-A frozen-trunk register does not expose `d reward / d latent` by default: the
-training forward runs each frozen block under `torch.no_grad()`, which detaches
-latents from the score. Enable the gradient path explicitly:
+Model weights, register checkpoints, prepared training manifests, and the paper
+prompt sets are not distributed here; see NOTICE. The Table 1 pair file and the
+keep-800 evaluation key set are published separately, with a fetch script in
+`scripts/fetch_table1_images.py`.
 
-```python
-from latent_reward_register import latent_gradient_enabled
+The benchmark generation and scoring pipeline (HPSv3, ImageReward, MUSIQ,
+CLIP-IQA) is not included: those scorers are third-party and separately licensed.
 
-with latent_gradient_enabled():
-    scores = register.score(latents, condition, timesteps)
-```
+## How it works
 
-`score_and_grad` does this internally. Trunk weights stay frozen either way.
-See `docs/latent-gradients.md`.
-
-## One teacher, two consumers
+### One teacher, two consumers
 
 RGS and RG-OPD share `RewardGradientTeacher`, which produces
 `base_next + reward_delta` where `reward_delta` follows the reward gradient,
@@ -88,6 +123,38 @@ step = teacher.guided_step(
 Steps where the schedule resolves to zero skip the register backward entirely,
 which is where the reported efficiency comes from. `reward_guided_sample(...,
 return_trace=True)` reports the fraction of steps actually guided.
+
+### Reward gradients
+
+A frozen-trunk register does not expose `d reward / d latent` by default: the
+training forward runs each frozen block under `torch.no_grad()`, which detaches
+latents from the score. Enable the gradient path explicitly:
+
+```python
+from latent_reward_register import latent_gradient_enabled
+
+with latent_gradient_enabled():
+    scores = register.score(latents, condition, timesteps)
+```
+
+`score_and_grad` does this internally. Trunk weights stay frozen either way.
+See `docs/latent-gradients.md`.
+
+### Two register classes
+
+| | Class | Use |
+| --- | --- | --- |
+| Real weights | `CheckpointRewardRegister` | `load_legacy_register`, `build_register_from_config` |
+| No weights | `ReferenceRewardRegister` | the `smoke-release` scaffold only |
+
+`ReferenceRewardRegister` is not checkpoint-compatible with the paper's weights.
+It exists so the training loop, preference scoring, RGS, and RG-OPD can run on a
+synthetic backbone with nothing downloaded. Reach for `CheckpointRewardRegister`
+for anything real.
+
+RG-OPD likewise has two trainers: `train_rgopd_rollout` is the paper path
+(on-policy, the student walks its own trajectory), and `train_rgopd` is an
+off-policy single-step trainer kept for ablations.
 
 ## Configuration
 
@@ -113,56 +180,23 @@ pairs contribute — so a flat list of preference pairs is not a substitute. See
 Training reads cached latents and prompt embeddings, never images: no VAE or
 text encoder runs during training.
 
-## Entry points
-
-Two register classes exist and the distinction matters:
-
-| | Class | Use |
-| --- | --- | --- |
-| Real weights | `CheckpointRewardRegister` | `load_legacy_register`, `build_register_from_config` |
-| No weights | `ReferenceRewardRegister` | the `smoke-release` scaffold only |
-
-`ReferenceRewardRegister` is not checkpoint-compatible with the paper's weights.
-It exists so the training loop, preference scoring, RGS, and RG-OPD can run on a
-synthetic backbone with nothing downloaded. Reach for `CheckpointRewardRegister`
-for anything real.
-
-RG-OPD likewise has two trainers: `train_rgopd_rollout` is the paper path
-(on-policy, the student walks its own trajectory), and `train_rgopd` is an
-off-policy single-step trainer kept for ablations.
-
-## Status
-
-Runnable: register construction for all three backbones, group-level training
-loss, preference scoring, reward gradients, the guidance schedule and teacher,
-the RGS loop, RG-OPD targets and loss, the on-policy rollout driver, the
-FlowMatch Euler transitions, the SD3/FLUX velocity models and LoRA student, and
-the Table 1 evaluator.
-
-Not yet included: the benchmark generation and scoring pipeline, and `sample` /
-`train-rgopd` as executable CLI subcommands (the Python API is complete; those
-still refuse without `--dry-run`). Model weights, checkpoints, and the paper
-prompt sets are not distributed here; see NOTICE.
-
 ## Documentation
 
-| Topic | File |
+| Document | Contents |
 | --- | --- |
-| Repository layout | `docs/release-layout.md` |
-| Register training | `docs/register-training.md` |
-| Reward gradients | `docs/latent-gradients.md` |
-| Reward-guided sampling | `docs/reward-guided-sampling.md` |
-| RG-OPD | `docs/reward-guided-opd.md` |
-| Preference scoring | `docs/preference-scoring.md` |
-| Data format | `docs/data-format.md` |
-| Checkpoint format | `docs/checkpoint-format.md` |
-| Provenance and resolved discrepancies | `docs/source-provenance.md` |
-| Reproduction | `docs/reproduction.md` |
+| `docs/register-training.md` | The training seam and its configs |
+| `docs/data-format.md` | Group manifest schema |
+| `docs/latent-gradients.md` | Why the gradient path needs enabling |
+| `docs/reward-guided-sampling.md` | The RGS loop and guidance schedule |
+| `docs/reward-guided-opd.md` | Rollout driver, targets, presets |
+| `docs/preference-scoring.md` | Table 1 evaluation and position bias |
+| `docs/checkpoint-format.md` | Portable checkpoint contract |
+| `docs/source-provenance.md` | Which experiment each released number came from |
+| `docs/release-layout.md` | Directory map |
+| `docs/reproduction.md` | What is reproducible from this repository alone |
 
-`docs/source-provenance.md` is worth reading before comparing checkpoints: the
-configuration embedded in a checkpoint is the source of truth, and several
-historical experiment names describe incompatible architectures.
+## Contributing
 
-## License
-
-Apache-2.0. See LICENSE and NOTICE.
+`pytest -q` runs the full suite on CPU with no weights. Tests cover the algorithm
+layer, every config preset, the vendored-implementation checksums, and the
+release hygiene guards.
