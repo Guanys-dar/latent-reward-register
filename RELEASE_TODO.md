@@ -369,20 +369,35 @@ FLUX — one function returning the guided flow velocity, which
 `classifier_free_velocity` composes. Per §3.3 both backbones are in scope since
 Table 3 compares them.
 
-### 4.4 Runnable commands — DONE for the model path
+### 4.4 Runnable commands — DONE
 `lrr build-register` constructs a register from a config against real weights and
 reports the trainable parameter count (147,599,619 for SD3, matching the exp11
 log). That check caught both the invented config keys and the doubled group axis.
 
-`velocity.py` supplies the last missing piece: `SD3VelocityModel`,
+`velocity.py` supplies the backbone piece: `SD3VelocityModel`,
 `FluxVelocityModel`, and `attach_lora_student`. The algorithm layer takes the
 velocity model as a callable, so nothing backbone-specific leaks into
 `sampling.py` or `rollout.py`. A CPU test drives
 velocity -> flowmatch -> teacher -> rollout end to end.
 
-Remaining: the `sample` / `train-rgopd` CLI subcommands still refuse without
-`--dry-run`. The Python API is complete, so this is argument plumbing plus a
-reduced-scale mode for reviewers.
+All three workflow subcommands now execute. They previously raised `RuntimeError`
+for any non-`--dry-run` invocation — including `train-register`, which earlier
+notes here missed. Three modules were added to close that gap:
+
+- `local_config.py` resolves machine paths from the uncommitted
+  `configs/local.yaml`, which is what keeps every committed file identical
+  between the private and public trees.
+- `dataset.py` turns a group manifest into `GroupBatch` objects, reading cached
+  latents. Short groups are skipped rather than padded.
+- `runtime.py` loads real pipelines, encodes prompts once outside the loop, and
+  drives the three tasks. It is the only module importing diffusers pipelines.
+
+`flowmatch.sigma_schedule` was also missing and is now verified against
+`FlowMatchEulerDiscreteScheduler` at 4/10/28/42 steps to float32 precision. An
+approximate grid would have moved which steps the sigma-banded schedule guides.
+
+`scripts/` carries one launch script per task plus `smoke_all.sh`. Reduced-scale
+flags (`--max-batches`, `--rounds 1`) give reviewers a real-path run in minutes.
 
 ### 4.5 Restore the group loss — DONE
 Ported and verified bit-exact against the research implementation across batch
@@ -410,13 +425,37 @@ It also guards a hazard found while parsing that file: `image1` is always the
 human-preferred image, so every label is 0 and a constant "first" answer scores
 100%. Use `shuffled()` or `position_bias()` before reporting a number.
 
-Remaining: the Table 2/3 generate -> score -> aggregate driver. The evaluation
-set, guidance, sampler, and velocity models are all in place; what is missing is
-the batch generation loop and the metric harness wiring (hpsv3, imagereward,
-musiq, clipiqa), which needs those third-party scorers installed.
+Remaining: the Table 2/3 generate -> score -> aggregate driver. Generation is now
+executable via `lrr sample`, so what is left is the metric harness wiring (hpsv3,
+imagereward, musiq, clipiqa) and the aggregation over keep-800. Those scorers are
+third-party and separately licensed, which is why this is last.
+
 
 ### 4.8 README rewrite — DONE
-Rewritten around what the package does, including the gradient mode, the shared
-teacher, the three verification levels, and the Z-Image scope limit.
-`docs/reproduction.md` now leads with a per-result status table, and
+Restructured so a reader reaches a runnable command before any design rationale:
+install, machine paths, then one command per task, with the mechanism (shared
+teacher, gradient mode, the two register classes) moved below under "How it
+works". The earlier version opened with rationale and buried the commands.
+
+`docs/reproduction.md` leads with a per-result status table, and
 `docs/reward-guided-opd.md` and `docs/latent-gradients.md` are new.
+
+### 4.9 Hygiene fixes found during the release pass — DONE
+- `docs/IMPLEMENTATION_SHA256SUMS` had 7 of 9 digests wrong and had never
+  matched, because nothing verified it. It also omitted
+  `reward_token_dina_head.py`. Corrected, extended to all ten vendored modules,
+  and enforced by `tests/test_implementation_checksums.py` (verified by planting
+  drift). Its header no longer claims byte-identity with the research originals,
+  which was never true: the three intentional deltas are recorded in
+  `docs/source-provenance.md`.
+- Dependencies had lower bounds only, leaving the load-bearing diffusers pin
+  doing half a job. `torch`, `transformers`, `peft`, `numpy`, `pillow` now carry
+  upper bounds; `peft`'s floor was above the version actually in use.
+- `.github/workflows/ci.yml` runs the suite through an editable install (the path
+  the README documents), lints, checks all seven presets resolve, and installs the
+  exported public tree from scratch to prove it is self-contained.
+- `release/export.py` no longer `rmtree`s `--out` unconditionally: a directory
+  that is neither empty nor a previous export needs `--force`.
+- ruff excludes the checksum-pinned vendored files, since satisfying it there
+  would break the manifest. The five remaining findings are ignored with reasons.
+
