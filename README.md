@@ -1,10 +1,44 @@
-# Latent Reward Registers
+<h1 align="center">Latent Reward Registers</h1>
 
-Official research code for **Latent Reward Registers (LRR)** and two downstream
-uses of their latent reward gradients:
+<p align="center">
+  <a href="https://arxiv.org/abs/2608.03929"><img src="https://img.shields.io/badge/arXiv-2608.03929-b31b1b.svg" alt="arXiv"></a>
+  <a href="https://github.com/Guanys-dar/latent-reward-register"><img src="https://img.shields.io/badge/Code-GitHub-181717.svg?logo=github" alt="Code"></a>
+  <img src="https://img.shields.io/badge/Checkpoints-Coming%20Soon-blue.svg" alt="Checkpoints coming soon">
+  <img src="https://img.shields.io/badge/Website-Coming%20Soon-green.svg" alt="Website coming soon">
+</p>
 
-- **Reward-Guided Sampling (RGS)** at inference time.
-- **Reward-Gradient On-Policy Distillation (RG-OPD)** at training time.
+<p align="center"><strong>To be submitted to ICLR 2027.</strong></p>
+
+Diffusion alignment usually scores only the final image, leaving every earlier
+denoising step with a difficult temporal credit-assignment problem. **Latent
+Reward Registers (LRR)** estimate terminal preference directly from intermediate
+noisy latents.
+
+LRR appends learnable, position-free register tokens as an auxiliary read path
+to a frozen Diffusion Transformer. It extracts preference signals without
+changing the generator's hidden states or velocity field.
+
+The resulting dense, differentiable reward field supports two alignment
+strategies:
+
+- **Reward-Gradient On-Policy Distillation (RG-OPD)** creates direct per-step
+  targets at states visited by the current generator, avoiding rollout-intensive
+  policy-gradient optimization.
+- **Reward-Guided Sampling (RGS)** steers the denoising trajectory with
+  magnitude-matched reward-gradient corrections and requires no parameter
+  updates.
+
+## Highlights
+
+- At high noise (`t = 0.8`), LRR achieves the best pairwise accuracy among the
+  evaluated latent reward models.
+- RG-OPD outperforms online reinforcement-learning baselines while reducing GPU
+  hours by up to **33×**.
+- RGS significantly improves reward while maintaining a favorable
+  reward–quality balance against training-free baselines.
+
+This repository provides LRR training, RGS, and RG-OPD for SD3-Medium and
+FLUX.1-dev. Experimental Z-Image support is included for register training.
 
 | Method | SD3-Medium | FLUX.1-dev | Z-Image |
 | --- | --- | --- | --- |
@@ -114,3 +148,10 @@ Run the weight-free checks with:
 ```bash
 bash scripts/smoke_all.sh
 ```
+
+## Acknowledgements
+
+We thank [DiffusionOPD](https://github.com/ali-vilab/DiffusionOPD),
+[Flow-GRPO](https://github.com/yifan123/flow_grpo), and
+[DiffusionNFT](https://github.com/NVlabs/DiffusionNFT) for providing excellent
+open-source diffusion reinforcement-learning codebases.
