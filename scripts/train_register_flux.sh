@@ -8,7 +8,7 @@ lrr train-register \
     --config configs/register/flux/paper.yaml \
     --training-manifest "$MANIFEST" \
     --output-directory "$OUTPUT" \
-    --group-size 4 \
+    --group-size 2 \
     --batch-size 2 \
     --precision bf16 \
     "$@"

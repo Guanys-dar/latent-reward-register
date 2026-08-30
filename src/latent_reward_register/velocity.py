@@ -130,9 +130,10 @@ class FluxVelocityModel:
 def attach_lora_student(
     transformer,
     *,
+    backbone: str = "sd3",
     rank: int = 32,
     alpha: int = 64,
-    target_modules: tuple[str, ...] = ("to_q", "to_k", "to_v", "to_out.0"),
+    target_modules=None,
 ):
     """Wrap a frozen transformer in a LoRA adapter and return it with its parameters.
 
@@ -147,10 +148,26 @@ def attach_lora_student(
             "LoRA students need peft. Install with: pip install -e '.[models]'"
         ) from error
 
+    if target_modules is None:
+        if backbone == "flux":
+            target_modules = (
+                r"(?:transformer_blocks\.\d+\.(?:attn\.(?:to_q|to_k|to_v|to_out\.0|add_q_proj|add_k_proj|add_v_proj|to_add_out)|ff\.net\.(?:0\.proj|2)|ff_context\.net\.(?:0\.proj|2))|single_transformer_blocks\.\d+\.(?:attn\.(?:to_q|to_k|to_v)|proj_mlp|proj_out))"
+            )
+        else:
+            target_modules = (
+                "attn.add_k_proj",
+                "attn.add_q_proj",
+                "attn.add_v_proj",
+                "attn.to_add_out",
+                "attn.to_k",
+                "attn.to_out.0",
+                "attn.to_q",
+                "attn.to_v",
+            )
     transformer.requires_grad_(False)
     student = get_peft_model(
         transformer,
-        LoraConfig(r=rank, lora_alpha=alpha, target_modules=list(target_modules), init_lora_weights="gaussian"),
+        LoraConfig(r=rank, lora_alpha=alpha, target_modules=target_modules, init_lora_weights="gaussian"),
     )
     trainable = [parameter for parameter in student.parameters() if parameter.requires_grad]
     if not trainable:

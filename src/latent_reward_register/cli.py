@@ -194,7 +194,7 @@ def _add_register_command(subcommands) -> None:
     command = subcommands.add_parser("train-register", help="train a latent reward register")
     _add_common_arguments(command)
     command.add_argument("--training-manifest")
-    command.add_argument("--group-size", type=int, default=4)
+    command.add_argument("--group-size", type=int, default=2)
     command.add_argument("--batch-size", type=int, default=1)
     command.add_argument("--max-batches", type=int, help="stop after N batches")
     command.set_defaults(handler=_workflow_command)

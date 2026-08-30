@@ -126,6 +126,10 @@ def train_rgopd_rollout(
         raise ValueError("RG-OPD student has no trainable parameters")
 
     trace = RolloutTrace()
+    optimizer.zero_grad(set_to_none=True)
+    optimized_count = len(initial_latents) * sum(
+        config.optimizes(index) for index in range(config.steps)
+    )
     for latents in initial_latents:
         states = rollout_trajectory(
             student=student, latents=latents, condition=condition, config=config
@@ -154,10 +158,7 @@ def train_rgopd_rollout(
             student_next, transition_std = student(state, condition, sigma, next_sigma)
             loss = rgopd_loss(student_next, step.guided_next, transition_std)
 
-            optimizer.zero_grad(set_to_none=True)
-            loss.backward()
-            torch.nn.utils.clip_grad_norm_(trainable, max_grad_norm)
-            optimizer.step()
+            (loss / optimized_count).backward()
 
             trace.steps += 1
             trace.guided_steps += int(step.applied)
@@ -166,4 +167,6 @@ def train_rgopd_rollout(
 
     if trace.steps == 0:
         raise ValueError("RG-OPD rollout optimized no steps: check sigmas and optimized_steps")
+    torch.nn.utils.clip_grad_norm_(trainable, max_grad_norm)
+    optimizer.step()
     return trace

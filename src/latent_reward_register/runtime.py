@@ -45,6 +45,50 @@ def resolve_dtype(name: str) -> torch.dtype:
         raise ValueError(f"Unknown precision {name!r}; expected one of {sorted(DTYPES)}") from None
 
 
+def load_register_asset(
+    checkpoint: str | Path,
+    *,
+    model_name_or_path: str,
+    dtype: torch.dtype,
+    local_files_only: bool,
+):
+    """Load either a released checkpoint directory or a legacy research ``.pt``."""
+    checkpoint_path = Path(checkpoint)
+    if checkpoint_path.is_file():
+        from .implementations import load_legacy_register
+
+        return load_legacy_register(
+            checkpoint_path,
+            model_name_or_path=model_name_or_path,
+            dtype=dtype,
+            local_files_only=local_files_only,
+        )
+    if not checkpoint_path.is_dir():
+        raise FileNotFoundError(f"Register checkpoint not found: {checkpoint_path}")
+
+    import json
+    import yaml
+
+    from .backbones import build_register
+    from .checkpoint import load_register_checkpoint
+
+    manifest = json.loads((checkpoint_path / "manifest.json").read_text())
+    saved_config = yaml.safe_load((checkpoint_path / "config.yaml").read_text())
+    register_config = saved_config["register"]
+    ignored = {"head_names", "feature_layers", "score_keys", "architecture", "revision"}
+    register = build_register(
+        manifest["backbone"],
+        head_names=tuple(register_config["head_names"]),
+        feature_layers=tuple(register_config["feature_layers"]),
+        model_name_or_path=model_name_or_path,
+        dtype=dtype,
+        local_files_only=local_files_only,
+        **{key: value for key, value in register_config.items() if key not in ignored},
+    )
+    load_register_checkpoint(checkpoint_path, register)
+    return register
+
+
 def load_pipeline(
     backbone: str,
     *,
@@ -81,6 +125,7 @@ class PromptEncoding:
 
     condition: RegisterCondition
     negative: RegisterCondition | None = None
+    text_ids: torch.Tensor | None = None
 
 
 def encode_prompts(
@@ -110,13 +155,14 @@ def encode_prompts(
                 ),
             )
         if backbone == "flux":
-            prompt_embeds, pooled, _text_ids = pipeline.encode_prompt(
+            prompt_embeds, pooled, text_ids = pipeline.encode_prompt(
                 prompt=prompts, prompt_2=prompts, device=device, num_images_per_prompt=1
             )
             # FLUX.1-dev is guidance-distilled: the scale is an embedded input, so
             # there is no unconditional branch to encode.
             return PromptEncoding(
-                condition=RegisterCondition(prompt_embeds=prompt_embeds, pooled_prompt_embeds=pooled)
+                condition=RegisterCondition(prompt_embeds=prompt_embeds, pooled_prompt_embeds=pooled),
+                text_ids=text_ids,
             )
     raise ValueError(f"No prompt encoder wired for backbone {backbone!r}")
 
@@ -127,12 +173,19 @@ def build_velocity_model(
     *,
     guidance_scale: float,
     negative: RegisterCondition | None = None,
+    image_ids: torch.Tensor | None = None,
+    text_ids: torch.Tensor | None = None,
 ):
     """The classifier-free-guided velocity callable for one backbone."""
     if backbone == "sd3":
         return SD3VelocityModel(transformer, guidance_scale=guidance_scale, negative=negative)
     if backbone == "flux":
-        return FluxVelocityModel(transformer, guidance_scale=guidance_scale)
+        return FluxVelocityModel(
+            transformer,
+            guidance_scale=guidance_scale,
+            image_ids=image_ids,
+            text_ids=text_ids,
+        )
     raise ValueError(f"No velocity model for backbone {backbone!r}")
 
 
@@ -180,7 +233,6 @@ def run_sampling(request: SampleRequest, *, local: LocalConfig | None = None) ->
     does is available piecewise through the Python API; this exists so a reader
     can reproduce a trajectory without writing glue code first.
     """
-    from .implementations import load_legacy_register
     from .sampling import reward_guided_sample
 
     local = local or LocalConfig()
@@ -201,7 +253,7 @@ def run_sampling(request: SampleRequest, *, local: LocalConfig | None = None) ->
     )
     pipeline.to(device)
 
-    register = load_legacy_register(
+    register = load_register_asset(
         local.resolve_checkpoint(request.register_checkpoint),
         model_name_or_path=model_path,
         dtype=dtype,
@@ -212,18 +264,33 @@ def run_sampling(request: SampleRequest, *, local: LocalConfig | None = None) ->
     encoding = encode_prompts(
         pipeline, request.prompts, backbone=request.backbone, device=device
     )
+    image_ids = None
+    if request.backbone == "flux":
+        height, width = request.resolution
+        generator = torch.Generator(device=device).manual_seed(request.seed)
+        channels = pipeline.transformer.config.in_channels // 4
+        latents, image_ids = pipeline.prepare_latents(
+            len(request.prompts), channels, height, width, torch.float32, device, generator, None
+        )
+        from .implementations.flux_common import SCHEDULER_SHIFT
+
+        schedule_shift = SCHEDULER_SHIFT
+    else:
+        generator = torch.Generator(device="cpu").manual_seed(request.seed)
+        shape = _latent_shape(request.backbone, request.resolution, len(request.prompts))
+        latents = torch.randn(shape, generator=generator, dtype=torch.float32).to(device)
+        schedule_shift = request.shift
+
     velocity = build_velocity_model(
         request.backbone,
         pipeline.transformer,
         guidance_scale=request.text_guidance_scale,
         negative=encoding.negative,
+        image_ids=image_ids,
+        text_ids=encoding.text_ids,
     )
 
-    generator = torch.Generator(device="cpu").manual_seed(request.seed)
-    shape = _latent_shape(request.backbone, request.resolution, len(request.prompts))
-    latents = torch.randn(shape, generator=generator, dtype=torch.float32).to(device)
-
-    sigmas = sigma_schedule(request.steps, shift=request.shift)
+    sigmas = sigma_schedule(request.steps, shift=schedule_shift)
     final, trace = reward_guided_sample(
         register=register,
         latents=latents,
@@ -310,7 +377,7 @@ def run_register_training(
     architecture_keys = {
         key: value
         for key, value in request.register_config.items()
-        if key not in {"head_names", "feature_layers", "score_keys", "architecture"}
+        if key not in {"head_names", "feature_layers", "score_keys", "architecture", "revision"}
     }
     register = build_register(
         request.backbone,
@@ -329,11 +396,10 @@ def run_register_training(
         heads=head_names,
         require_pooled=request.backbone in {"sd3", "flux"},
     )
-    batches = list(
-        iter_group_batches(
+    def batches():
+        return iter_group_batches(
             manifest_path, config=dataset_config, local=local, limit=request.max_batches
         )
-    )
 
     train_register(
         model=register,
@@ -344,6 +410,12 @@ def run_register_training(
             epochs=int(request.train_config.get("epochs", 1)),
             ema_decay=float(request.train_config.get("ema_decay", 0.999)),
             max_grad_norm=float(request.train_config.get("max_grad_norm", 1.0)),
+            warmup_steps=int(request.train_config.get("warmup_steps", 0)),
+            gradient_accumulation_steps=max(
+                1,
+                int(request.train_config.get("global_batch_size", request.batch_size))
+                // request.batch_size,
+            ),
         ),
         output_dir=request.output_directory,
         manifest=CheckpointManifest(
@@ -361,7 +433,10 @@ def run_register_training(
         "backbone": request.backbone,
         "groups_usable": usable,
         "groups_total": total,
-        "batches": len(batches),
+        "batches": min(
+            (usable + request.batch_size - 1) // request.batch_size,
+            request.max_batches if request.max_batches is not None else usable,
+        ),
         "heads": list(head_names),
         "output_directory": str(request.output_directory),
     }
@@ -403,7 +478,6 @@ def run_rgopd_training(
     trained against guidance the sampler would not apply.
     """
     from .flowmatch import make_student_policy
-    from .implementations import load_legacy_register
     from .rollout import RolloutConfig, train_rgopd_rollout
     from .teacher import RewardGradientTeacher
     from .velocity import attach_lora_student
@@ -426,7 +500,7 @@ def run_rgopd_training(
     )
     pipeline.to(device)
 
-    register = load_legacy_register(
+    register = load_register_asset(
         local.resolve_checkpoint(request.register_checkpoint),
         model_name_or_path=model_path,
         dtype=dtype,
@@ -437,37 +511,65 @@ def run_rgopd_training(
     encoding = encode_prompts(
         pipeline, request.prompts, backbone=request.backbone, device=device
     )
-    # The frozen anchor and the student must share a velocity convention, so both
-    # are built from the same transformer: the anchor from the base weights, the
-    # student from the same weights plus the adapter.
+    student_transformer, trainable = attach_lora_student(
+        pipeline.transformer,
+        backbone=request.backbone,
+        rank=request.lora_rank,
+        alpha=request.lora_alpha,
+    )
+
+    image_ids = None
+    prepared_initial = []
+    if request.backbone == "flux":
+        height, width = request.resolution
+        channels = pipeline.transformer.config.in_channels // 4
+        for round_index in range(request.rounds):
+            generator = torch.Generator(device=device).manual_seed(request.seed + round_index)
+            latents, image_ids = pipeline.prepare_latents(
+                request.batch_size, channels, height, width, torch.float32, device, generator, None
+            )
+            prepared_initial.append(latents)
+
     reference_velocity = build_velocity_model(
         request.backbone,
-        pipeline.transformer,
+        student_transformer,
         guidance_scale=request.text_guidance_scale,
         negative=encoding.negative,
+        image_ids=image_ids,
+        text_ids=encoding.text_ids,
     )
-    reference_step = make_reference_step(reference_velocity)
-
-    student_transformer, trainable = attach_lora_student(
-        pipeline.transformer, rank=request.lora_rank, alpha=request.lora_alpha
+    reference_step = make_reference_step(
+        reference_velocity,
+        context_factory=student_transformer.disable_adapter,
     )
     student_velocity = build_velocity_model(
         request.backbone,
         student_transformer,
         guidance_scale=request.text_guidance_scale,
         negative=encoding.negative,
+        image_ids=image_ids,
+        text_ids=encoding.text_ids,
     )
     student = make_student_policy(student_velocity)
 
     teacher = RewardGradientTeacher(register, schedule=request.schedule, heads=request.heads)
     optimizer = torch.optim.AdamW(trainable, lr=request.learning_rate)
-    sigmas = sigma_schedule(request.rollout_steps, shift=request.shift)
+    if request.backbone == "flux":
+        from .implementations.flux_common import SCHEDULER_SHIFT
+
+        schedule_shift = SCHEDULER_SHIFT
+    else:
+        schedule_shift = request.shift
+    sigmas = sigma_schedule(request.rollout_steps, shift=schedule_shift)
     shape = _latent_shape(request.backbone, request.resolution, request.batch_size)
 
     traces = []
     for round_index in range(request.rounds):
-        generator = torch.Generator(device="cpu").manual_seed(request.seed + round_index)
-        initial = [torch.randn(shape, generator=generator, dtype=torch.float32).to(device)]
+        if request.backbone == "flux":
+            initial = [prepared_initial[round_index]]
+        else:
+            generator = torch.Generator(device="cpu").manual_seed(request.seed + round_index)
+            initial = [torch.randn(shape, generator=generator, dtype=torch.float32).to(device)]
         traces.append(
             train_rgopd_rollout(
                 student=student,

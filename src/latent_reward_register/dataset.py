@@ -55,7 +55,7 @@ class DatasetConfig:
     group to form a pair.
     """
 
-    group_size: int = 4
+    group_size: int = 2
     batch_size: int = 2
     sigma: float = 1.0
     heads: tuple[str, ...] = ("preference",)

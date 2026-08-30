@@ -16,6 +16,7 @@ CFG velocity function.
 from __future__ import annotations
 
 from collections.abc import Callable
+from contextlib import nullcontext
 from typing import Protocol
 
 import torch
@@ -50,7 +51,11 @@ def euler_step(
     return (latents.float() + dt.float() * velocity.float()).to(dtype=latents.dtype)
 
 
-def make_reference_step(velocity_model: VelocityModel) -> Callable[..., torch.Tensor]:
+def make_reference_step(
+    velocity_model: VelocityModel,
+    *,
+    context_factory: Callable[[], object] | None = None,
+) -> Callable[..., torch.Tensor]:
     """Build the frozen anchor transition used by RGS and RG-OPD.
 
     The returned callable matches the ``reference_step`` signature both consume,
@@ -66,7 +71,8 @@ def make_reference_step(velocity_model: VelocityModel) -> Callable[..., torch.Te
     ) -> torch.Tensor:
         # The whole advance is inside no_grad, not just the velocity call: the
         # anchor must not carry a graph back to the incoming latent either.
-        with torch.no_grad():
+        context = context_factory() if context_factory is not None else nullcontext()
+        with torch.no_grad(), context:
             velocity = velocity_model(latents, condition, timesteps_for_sigma(sigma), **kwargs)
             return euler_step(latents, velocity, sigma, next_sigma)
 

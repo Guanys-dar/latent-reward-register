@@ -31,6 +31,9 @@ Paths are resolved relative to `data_root` in `configs/local.yaml`. Training
 does not run the VAE or text encoder. Groups shorter than `--group-size` are
 skipped rather than padded.
 
+The paper checkpoints use DiNa pairs, so the release scripts set
+`--group-size 2`.
+
 `head_names` and `score_keys` in the register config are parallel lists; keep
 their ordering aligned. `vis_h` and `vis_w` are transformer token dimensions,
 not image pixels.

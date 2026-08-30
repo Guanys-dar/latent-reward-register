@@ -88,7 +88,9 @@ class RewardGradientTeacher:
         Per-head gradients are unit-RMS normalized before weighting, so no head
         dominates through scale alone.
         """
-        output = self.register.score_and_grad(latents, condition, timesteps, heads=self.heads)
+        convert = getattr(self.register, "timesteps_from_sigma", None)
+        register_timesteps = convert(timesteps) if convert is not None else timesteps
+        output = self.register.score_and_grad(latents, condition, register_timesteps, heads=self.heads)
         return self.guidance.combine(output.gradients, self.head_weights)
 
     def guided_step(

@@ -51,11 +51,25 @@ class CheckpointRewardRegister(nn.Module):
         self.backbone = backbone
         self.head_names = head_names
 
+    def timesteps_from_sigma(self, sigma: torch.Tensor) -> torch.Tensor:
+        """Convert sampler noise levels to the backbone's reward-time convention."""
+        if self.backbone == "sd3":
+            return sigma * 1000.0
+        return sigma
+
     def score(self, latents: torch.Tensor, condition: RegisterCondition, timesteps: torch.Tensor):
         """Score one latent per prompt. Returns ``{head: (batch,)}``."""
+        model_latents = latents
+        if self.backbone == "flux" and latents.ndim == 3:
+            from .flux_common import unpack_latents
+
+            grid = int(latents.shape[1] ** 0.5)
+            if grid * grid != latents.shape[1]:
+                raise ValueError(f"FLUX packed sequence must form a square grid, got {latents.shape[1]}")
+            model_latents = unpack_latents(latents, grid, grid)
         return {
             name: value.reshape(latents.shape[0])
-            for name, value in self.score_groups(latents.unsqueeze(1), condition, timesteps).items()
+            for name, value in self.score_groups(model_latents.unsqueeze(1), condition, timesteps).items()
         }
 
     def score_groups(
