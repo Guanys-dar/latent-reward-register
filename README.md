@@ -24,33 +24,45 @@ or velocity field.
 The resulting dense, differentiable reward field supports two alignment
 strategies:
 
-**RG-OPD is a training-time alignment method, whereas RGS is training-free and
-operates entirely at inference time.**
+- **[training-time alignment]**: Reward-Gradient On-Policy Distillation (RG-OPD)
+  builds per-step targets at the states visited by the current generator,
+  avoiding rollout-intensive policy-gradient optimization.
+- **[training-free alignment]**: Reward-Guided Sampling (RGS) steers the
+  denoising trajectory with magnitude-matched reward-gradient corrections and
+  requires no parameter updates.
 
-- **Reward-Gradient On-Policy Distillation (RG-OPD)** builds per-step targets at
-  the states visited by the current generator, avoiding rollout-intensive
-  policy-gradient optimization.
-- **Reward-Guided Sampling (RGS)** steers the denoising trajectory with
-  magnitude-matched reward-gradient corrections and requires no parameter
-  updates.
+<p align="center">
+  <img src="assets/overview.png" width="100%" alt="Overview of Latent Reward Registers">
+</p>
 
 ## Highlights
 
-- At high noise (`t = 0.8`), LRR achieves the best pairwise accuracy among the
-  evaluated latent reward models.
-- RG-OPD outperforms online reinforcement-learning baselines while reducing GPU
-  hours by up to **33×**.
-- RGS significantly improves reward while maintaining a favorable
-  reward–quality balance against training-free baselines.
+1. **Accurate latent rewards.** At high noise (`t = 0.8`), LRR outperforms all
+   evaluated latent reward models on three of four benchmarks, and its average
+   pairwise accuracy even exceeds several reward models operating on clean
+   images. Across noise levels, LRR also preserves the ranking induced by the
+   endpoint reward models, with Spearman correlations of `0.76–0.83`.
 
-This repository provides LRR training, RGS, and RG-OPD for SD3-Medium and
-FLUX.1-dev. Experimental Z-Image support is included for register training.
+2. **Fast training-time alignment.** RG-OPD reaches Flow-GRPO-equivalent HPSv3
+   scores **14.0×–33.2× faster** in aggregate GPU hours on SD3-Medium and
+   FLUX.1-dev.
 
-| Method | SD3-Medium | FLUX.1-dev | Z-Image |
-| --- | --- | --- | --- |
-| Register training | yes | yes | experimental |
-| Reward-guided sampling | yes | yes | no |
-| RG-OPD | yes | yes | no |
+<p align="center">
+  <img src="assets/lrr-rgopd-results.png" width="100%" alt="LRR rank agreement and RG-OPD training efficiency">
+  <br>
+  <sub>Left: rank agreement between LRR and endpoint reward models. Right: training efficiency of RG-OPD.</sub>
+</p>
+
+3. **Strong and composable training-free alignment.** RGS substantially
+   outperforms other training-free methods while preserving perceptual quality.
+   Its reward gradients can be freely composed across different reward heads,
+   enabling single- or multi-objective guidance without parameter updates.
+
+<p align="center">
+  <img src="assets/rgs-comparison.png" width="100%" alt="Comparison of training-free sampling methods">
+  <br>
+  <sub>RGS compared with training-free baselines under matched prompts and seeds.</sub>
+</p>
 
 ## Installation
 
