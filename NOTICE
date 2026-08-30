@@ -4,7 +4,7 @@ Copyright 2026 Yuanshen Guan
 Licensed under the Apache License, Version 2.0. See LICENSE.
 
 This product includes research code consolidated from the author's experiment
-workspaces. Per-subsystem provenance is recorded in docs/source-provenance.md.
+workspaces and adapted for this paper repository.
 
 Third-party dependencies and models
 -----------------------------------

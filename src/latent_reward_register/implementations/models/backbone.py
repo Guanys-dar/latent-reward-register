@@ -1,6 +1,6 @@
 """SD3 reward backbone: frozen MMDiT front-end for the reward register.
 
-Ported from the research workspace; see docs/source-provenance.md. Kept
+Ported from the research workspace. Kept
 checkpoint-faithful: the architecture must stay byte-compatible with the
 published checkpoints, so prefer provenance notes over refactoring here.
 """
@@ -414,4 +414,3 @@ class SD3RewardBackbone(nn.Module):
         for raw_index, block_state in state_dict.items():
             index = int(raw_index)
             self.transformer.transformer_blocks[index].load_state_dict(block_state)
-

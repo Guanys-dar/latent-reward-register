@@ -1,9 +1,9 @@
 """Asset-free integration smoke: every algorithm path, no model weights.
 
-Backs ``lrr smoke-release``. The synthetic adapter below is a stand-in with
+The synthetic adapter below is a stand-in with
 closed-form features, not a model: this proves the equations are wired together
 and the shapes agree end to end. It cannot prove a real backbone runs — for that
-use ``lrr build-register`` against real weights.
+use the experiment scripts against real weights.
 """
 from __future__ import annotations
 

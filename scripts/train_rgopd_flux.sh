@@ -1,8 +1,7 @@
 #!/usr/bin/env bash
 # Distill FLUX reward guidance into a LoRA student (RG-OPD, paper preset).
 #
-# Note the reward scale differs from SD3 (0.80 vs 0.40) and the teacher is the
-# unified-v3 EMA register, not exp11. See docs/source-provenance.md.
+# The FLUX paper preset uses reward scale 0.80.
 set -euo pipefail
 
 CHECKPOINT="${CHECKPOINT:?set CHECKPOINT to the FLUX teacher register (unified-v3 EMA)}"

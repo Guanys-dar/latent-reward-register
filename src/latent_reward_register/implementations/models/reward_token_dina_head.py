@@ -1,6 +1,6 @@
 """DiNa-style reward head over frozen backbone states.
 
-Ported from the research workspace; see docs/source-provenance.md. Kept
+Ported from the research workspace. Kept
 checkpoint-faithful: the architecture must stay byte-compatible with the
 published checkpoints, so prefer provenance notes over refactoring here.
 """

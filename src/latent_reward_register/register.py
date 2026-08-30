@@ -5,7 +5,7 @@ checkpoint. It is a self-contained, weight-free implementation of the register
 idea — trainable tokens read a backbone's features, an MLP head turns them into
 a reward — and its purpose is to make the algorithm layer (training loop,
 preference scoring, RGS, RG-OPD) executable with no model weights at all. That
-is what ``lrr smoke-release`` runs, via the synthetic adapter in ``smoke.py``.
+is used by the synthetic adapter in ``smoke.py``.
 
 For a real SD3/FLUX/Z-Image register use
 :class:`~latent_reward_register.implementations.loader.CheckpointRewardRegister`,

@@ -8,7 +8,7 @@ implementation in the tree is the synthetic adapter in ``smoke.py``.
 
 It is kept because it is the seam that makes the algorithm layer runnable with no
 weights: an adapter is the smallest thing that can stand in for a backbone, which
-is what ``lrr smoke-release`` exploits. Treat it as the test seam, not as the
+is what the synthetic smoke test exploits. Treat it as the test seam, not as the
 extension point for adding a real backbone.
 """
 from __future__ import annotations
@@ -62,4 +62,3 @@ class BackboneAdapter(ABC):
         **kwargs: Any,
     ) -> torch.Tensor:
         raise NotImplementedError
-

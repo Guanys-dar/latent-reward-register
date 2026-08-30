@@ -1,6 +1,6 @@
 """Pooling helpers shared by the reward register heads.
 
-Ported from the research workspace; see docs/source-provenance.md. Kept
+Ported from the research workspace. Kept
 checkpoint-faithful: the architecture must stay byte-compatible with the
 published checkpoints, so prefer provenance notes over refactoring here.
 """
@@ -50,4 +50,3 @@ class QueryAttentionPooling(nn.Module):
         if self.output_norm is not None:
             pooled = self.output_norm(pooled)
         return pooled
-

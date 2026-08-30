@@ -11,9 +11,8 @@ Where to start, by task:
 - **RG-OPD.** ``train_rgopd_rollout`` is the paper path (on-policy). ``train_rgopd``
   is the off-policy single-step trainer kept for ablations; see ``rgopd.py``.
 
-``ReferenceRewardRegister`` is the weight-free scaffold behind
-``lrr smoke-release``, not the production path: real model-backed registers are
-``CheckpointRewardRegister``.
+``ReferenceRewardRegister`` is a weight-free test scaffold; real model-backed
+registers use ``CheckpointRewardRegister``.
 """
 
 from .checkpoint import CheckpointManifest, load_register_checkpoint, save_register_checkpoint

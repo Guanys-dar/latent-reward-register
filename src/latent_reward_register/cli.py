@@ -6,39 +6,8 @@ import sys
 from dataclasses import replace
 from pathlib import Path
 
-from .backbones import available_backbones
-from .checkpoint import read_legacy_checkpoint
 from .config import load_config
-from .workflows import load_workflow, validate_release
-
-
-def _inspect_config(args: argparse.Namespace) -> int:
-    config = load_config(args.config)
-    print(json.dumps(config, indent=2, sort_keys=True))
-    return 0
-
-
-def _inspect_checkpoint(args: argparse.Namespace) -> int:
-    payload = read_legacy_checkpoint(args.checkpoint)
-    config = payload["config"]
-    summary = {
-        "global_step": payload.get("global_step"),
-        "backbone": config.get("model", {}).get("backbone", config.get("reward_token", {}).get("architecture")),
-        "reward_register": config.get("reward_token", {}),
-    }
-    print(json.dumps(summary, indent=2, sort_keys=True))
-    return 0
-
-
-def _plan(args: argparse.Namespace) -> int:
-    workflow = load_workflow(args.config)
-    print(json.dumps(workflow.plan(), indent=2, sort_keys=True))
-    return 0
-
-
-def _validate_release(args: argparse.Namespace) -> int:
-    print(json.dumps(validate_release(args.root), indent=2, sort_keys=True))
-    return 0
+from .workflows import load_workflow
 
 
 def _read_prompts(path: str | None, inline: list[str] | None) -> list[str]:
@@ -71,21 +40,16 @@ def _schedule_from_config(config: dict):
 
 
 def _workflow_command(args: argparse.Namespace) -> int:
-    """Plan a workflow, and run it unless --dry-run.
-
-    --dry-run prints the resolved plan without touching weights, which is what
-    config validation and CI use. Without it, the run needs real assets.
-    """
+    """Run one of the three paper workflows."""
     workflow = load_workflow(args.config)
     plan = workflow.plan()
     requested = {
         key: value
         for key, value in {
-            "dataset_manifest": args.dataset_manifest,
-            "register_checkpoint": args.register_checkpoint,
-            "prompt_file": args.prompt_file,
-            "training_manifest": args.training_manifest,
-            "output_directory": args.output_directory,
+            "register_checkpoint": getattr(args, "register_checkpoint", None),
+            "prompt_file": getattr(args, "prompt_file", None),
+            "training_manifest": getattr(args, "training_manifest", None),
+            "output_directory": getattr(args, "output_directory", None),
         }.items()
         if value is not None
     }
@@ -116,7 +80,7 @@ def _execute_workflow(args: argparse.Namespace, workflow) -> int:
     task = workflow.task
 
     if task == "train-register":
-        manifest = args.training_manifest or args.dataset_manifest
+        manifest = args.training_manifest
         if not manifest:
             raise ValueError("train-register needs --training-manifest")
         if not args.output_directory:
@@ -209,113 +173,61 @@ def _execute_workflow(args: argparse.Namespace, workflow) -> int:
     return 0
 
 
-def _add_workflow_command(subcommands, name: str, help_text: str) -> None:
-    command = subcommands.add_parser(name, help=help_text)
+def _add_common_arguments(command: argparse.ArgumentParser) -> None:
     command.add_argument("--config", required=True)
     command.add_argument("--output-directory")
-    command.add_argument("--dataset-manifest")
-    command.add_argument("--training-manifest")
-    command.add_argument("--register-checkpoint")
-    command.add_argument("--prompt-file")
-    command.add_argument("--prompt", action="append", help="inline prompt; repeatable")
     command.add_argument("--local-config", help="machine paths; defaults to configs/local.yaml")
     command.add_argument("--model-path", help="override the backbone snapshot for this run")
     command.add_argument("--precision", default="bf16", choices=("bf16", "fp16", "fp32"))
     command.add_argument("--device", default="cuda")
-    command.add_argument("--seed", type=int, default=42)
-    command.add_argument("--steps", type=int, help="override the config's sampling steps")
+    command.add_argument("--local-files-only", action="store_true")
+    command.add_argument("--dry-run", action="store_true", help="validate without loading weights")
+
+
+def _add_prompt_arguments(command: argparse.ArgumentParser) -> None:
+    prompts = command.add_mutually_exclusive_group()
+    prompts.add_argument("--prompt-file")
+    prompts.add_argument("--prompt", action="append", help="inline prompt; repeatable")
+
+
+def _add_register_command(subcommands) -> None:
+    command = subcommands.add_parser("train-register", help="train a latent reward register")
+    _add_common_arguments(command)
+    command.add_argument("--training-manifest")
     command.add_argument("--group-size", type=int, default=4)
     command.add_argument("--batch-size", type=int, default=1)
-    command.add_argument("--max-batches", type=int, help="stop after N batches (smoke runs)")
-    command.add_argument("--rounds", type=int, default=1, help="RG-OPD rollout rounds")
-    command.add_argument("--local-files-only", action="store_true")
-    command.add_argument(
-        "--dry-run", action="store_true", help="print the resolved plan without loading weights"
-    )
+    command.add_argument("--max-batches", type=int, help="stop after N batches")
     command.set_defaults(handler=_workflow_command)
 
 
-def _build_register(args: argparse.Namespace) -> int:
-    """Construct a register from a config against real weights.
-
-    This is the cheapest command that exercises the model path. Config
-    validation and --dry-run cannot catch a config key the model does not
-    accept, or a shape error in the group plumbing; this can.
-    """
-    import torch
-
-    from .backbones import build_register_from_config
-
-    config = load_config(args.config)
-    if args.model_path:
-        config.setdefault("backbone", {})["model_name_or_path"] = args.model_path
-    dtype = {"bf16": torch.bfloat16, "fp16": torch.float16, "fp32": torch.float32}[args.precision]
-
-    register = build_register_from_config(
-        config, dtype=dtype, local_files_only=args.local_files_only
-    )
-    trainable = sum(p.numel() for p in register.parameters() if p.requires_grad)
-    total = sum(p.numel() for p in register.parameters())
-    print(
-        json.dumps(
-            {
-                "config": args.config,
-                "model": type(register.model).__name__,
-                "backbone": register.backbone,
-                "head_names": list(register.head_names),
-                "trainable_parameters": trainable,
-                "total_parameters": total,
-            },
-            indent=2,
-            sort_keys=True,
-        )
-    )
-    return 0
+def _add_sample_command(subcommands) -> None:
+    command = subcommands.add_parser("sample", help="sample with reward-gradient guidance")
+    _add_common_arguments(command)
+    _add_prompt_arguments(command)
+    command.add_argument("--register-checkpoint")
+    command.add_argument("--seed", type=int, default=42)
+    command.add_argument("--steps", type=int, help="override the configured sampling steps")
+    command.set_defaults(handler=_workflow_command)
 
 
-def _list_backbones(_: argparse.Namespace) -> int:
-    print("\n".join(available_backbones()))
-    return 0
-
-
-def _smoke_release(_: argparse.Namespace) -> int:
-    from .smoke import run_release_smoke
-
-    print(json.dumps(run_release_smoke(), indent=2, sort_keys=True))
-    return 0
+def _add_rgopd_command(subcommands) -> None:
+    command = subcommands.add_parser("train-rgopd", help="distill guidance into a LoRA student")
+    _add_common_arguments(command)
+    _add_prompt_arguments(command)
+    command.add_argument("--register-checkpoint")
+    command.add_argument("--rounds", type=int, default=1)
+    command.add_argument("--batch-size", type=int, default=1)
+    command.add_argument("--seed", type=int, default=42)
+    command.set_defaults(handler=_workflow_command)
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(prog="lrr", description="Latent Reward Register research toolkit")
+    parser = argparse.ArgumentParser(prog="lrr", description="Latent Reward Register paper code")
     parser.add_argument("--version", action="version", version="%(prog)s 0.1.0")
     subcommands = parser.add_subparsers(dest="command", required=True)
-    inspect_config = subcommands.add_parser("inspect-config")
-    inspect_config.add_argument("config")
-    inspect_config.set_defaults(handler=_inspect_config)
-    inspect_checkpoint = subcommands.add_parser("inspect-checkpoint")
-    inspect_checkpoint.add_argument("checkpoint")
-    inspect_checkpoint.set_defaults(handler=_inspect_checkpoint)
-    backbones = subcommands.add_parser("list-backbones")
-    backbones.set_defaults(handler=_list_backbones)
-    plan = subcommands.add_parser("plan", help="validate a workflow config and print its runtime inputs")
-    plan.add_argument("config")
-    plan.set_defaults(handler=_plan)
-    validate = subcommands.add_parser("validate-release", help="validate all supported release workflows")
-    validate.add_argument("--root", default=".")
-    validate.set_defaults(handler=_validate_release)
-    _add_workflow_command(subcommands, "train-register", "plan register training")
-    _add_workflow_command(subcommands, "sample", "plan reward-guided sampling")
-    _add_workflow_command(subcommands, "train-rgopd", "plan reward-guided OPD training")
-    build = subcommands.add_parser(
-        "build-register", help="construct a register from a config against real model weights"
-    )
-    build.add_argument("--config", required=True)
-    build.add_argument("--model-path", help="local snapshot; overrides backbone.model_name_or_path")
-    build.add_argument("--precision", choices=("bf16", "fp16", "fp32"), default="bf16")
-    build.add_argument("--local-files-only", action="store_true")
-    build.set_defaults(handler=_build_register)
-    smoke = subcommands.add_parser("smoke-release", help="exercise all core algorithms without external assets")
-    smoke.set_defaults(handler=_smoke_release)
+    _add_register_command(subcommands)
+    _add_sample_command(subcommands)
+    _add_rgopd_command(subcommands)
     return parser
 
 

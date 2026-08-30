@@ -1,6 +1,6 @@
 """SD3 reward register (exp11 release baseline) and its ablation variants.
 
-Ported from the research workspace; see docs/source-provenance.md. Kept
+Ported from the research workspace. Kept
 checkpoint-faithful: the architecture must stay byte-compatible with the
 published checkpoints, so prefer provenance notes over refactoring here.
 """
@@ -1572,4 +1572,3 @@ class SD3LatentRewardGridPoolNoPEMultiHeadModel(SD3LatentRewardGridPoolNoPEModel
         super().load_checkpoint_state(state)
         if "score_mlps" in state:
             self.score_mlps.load_state_dict(state["score_mlps"])
-

@@ -39,14 +39,13 @@ where = ["src"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+pythonpath = ["src"]
 markers = ["gpu: requires a CUDA GPU and model weights"]
 
 [tool.ruff]
 line-length = 119
-# The vendored research implementations are pinned byte-for-byte by
-# docs/IMPLEMENTATION_SHA256SUMS. Linting them would demand edits that break that
-# manifest and, with it, the claim that the released architecture is the one that
-# produced the paper's numbers.
+# Model implementations follow the original experiment code and are excluded
+# from mechanical style rewrites that could change checkpoint compatibility.
 extend-exclude = ["src/latent_reward_register/implementations/models", "src/latent_reward_register/implementations/flux_common.py", "src/latent_reward_register/implementations/zimage_common.py"]
 
 [tool.ruff.lint]

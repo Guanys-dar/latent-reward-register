@@ -1,11 +1,11 @@
 # Copy to configs/local.yaml and fill in for your machine. Never committed.
 # Keeping machine-specific values here is what lets every code and config file
-# stay byte-identical between the private working repo and the public release.
+# remain portable across machines.
 
 # Root that manifest-relative paths resolve against.
 data_root: /path/to/prepared_data
 
-# Directory holding released register checkpoints.
+# Directory holding register checkpoints.
 checkpoint_root: /path/to/checkpoints
 
 # Local model snapshots; omit to resolve from the Hugging Face Hub.
