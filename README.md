@@ -9,23 +9,23 @@
 
 <p align="center"><strong>To be submitted to ICLR 2027.</strong></p>
 
-**We propose building visual reward models directly on visual generators,
-enabling reward modeling to benefit from generative scaling.**
+Diffusion alignment typically scores only the final image, so every intermediate
+denoising step faces a difficult temporal credit-assignment problem. We propose
+that visual reward models can be built directly on visual generators, enabling
+them to provide reliable per-step latent reward signals and to benefit from the
+scaling of visual generation.
 
-Diffusion alignment usually scores only the final image, leaving every earlier
-denoising step with a difficult temporal credit-assignment problem. **Latent
-Reward Registers (LRR)** estimate terminal preference directly from intermediate
-noisy latents.
-
-LRR appends learnable, position-free register tokens as an auxiliary read path
-to a frozen Diffusion Transformer. It extracts preference signals without
-changing the generator's hidden states or velocity field.
+**Latent Reward Registers (LRR)** estimate the endpoint reward directly from
+intermediate noisy latents. LRR adds learnable, position-free register tokens to
+a frozen Diffusion Transformer, using them as an auxiliary read path. This read
+path extracts preference signals without changing the generator's hidden states
+or velocity field.
 
 The resulting dense, differentiable reward field supports two alignment
 strategies:
 
-- **Reward-Gradient On-Policy Distillation (RG-OPD)** creates direct per-step
-  targets at states visited by the current generator, avoiding rollout-intensive
+- **Reward-Gradient On-Policy Distillation (RG-OPD)** builds per-step targets at
+  the states visited by the current generator, avoiding rollout-intensive
   policy-gradient optimization.
 - **Reward-Guided Sampling (RGS)** steers the denoising trajectory with
   magnitude-matched reward-gradient corrections and requires no parameter
