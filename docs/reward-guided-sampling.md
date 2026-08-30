@@ -60,4 +60,15 @@ any cost claim rather than assuming the schedule.
 Guidance needs `d reward / d latent`, which a frozen-trunk register does not
 expose by default. See `docs/latent-gradients.md`.
 
+## Running it
+
+```bash
+CHECKPOINT=/path/to/sd3-register.pt PROMPTS=prompts.txt bash scripts/sample_sd3.sh
+```
+
+The sigma grid comes from `flowmatch.sigma_schedule`, which reproduces
+`FlowMatchEulerDiscreteScheduler` exactly. That matters here specifically: the
+schedule gates on sigma bands, so an approximate grid would change which steps
+get guided and quietly move the reported guidance fraction.
+
 Checkpoint and prompt paths are runtime inputs, not repository contents.

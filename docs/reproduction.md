@@ -8,10 +8,15 @@
 | Training objective | in repo | training data |
 | Reward gradients | verified | none |
 | Guidance schedule and teacher | in repo | none |
-| RGS trajectories | loop in repo | published register checkpoints |
-| RG-OPD targets, loss, rollout driver | in repo | checkpoints |
+| RGS trajectories | `lrr sample` runs it | published register checkpoints |
+| RG-OPD | `lrr train-rgopd` runs it | teacher registers, prompt sets |
 | Table 1 preference accuracy | evaluator in repo | pair file and images |
 | Table 2 / Table 3 generation and scoring | not in repo | generation + scoring pipeline, prompt sets |
+
+Every row above the last is executable from this repository once its assets are
+in place; the last needs the third-party scorers (HPSv3, ImageReward, MUSIQ,
+CLIP-IQA), which are separately licensed and not vendored here.
+
 
 Nothing here selects checkpoints on the final test prompts; see the selection
 protocol below.

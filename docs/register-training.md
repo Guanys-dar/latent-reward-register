@@ -43,8 +43,20 @@ different number means the architecture has drifted from the paper baseline.
 grid (SD3: 1024x1024 pixels gives a 128x128 latent and 64x64 tokens). A smaller
 input raises rather than silently rescaling.
 
+## Running it
+
+```bash
+MANIFEST=/path/to/groups.jsonl bash scripts/train_register_sd3.sh
+```
+
+Add `--max-batches 4` for a short run that exercises the real model path. The
+loader reports how many groups in the manifest actually hold `group_size` images
+before training starts, since a manifest whose groups are too small yields no
+batches at all.
+
 ## Python seam
 
+- `latent_reward_register.dataset.iter_group_batches` — manifest to batches
 - `latent_reward_register.training.GroupBatch`
 - `latent_reward_register.training.TrainConfig`
 - `latent_reward_register.training.train_register`
@@ -56,3 +68,7 @@ For a real run that is `CheckpointRewardRegister`, whose model owns latent
 packing, conditioning, and transformer traversal. It also takes
 `register_config`: the architecture record written into the checkpoint's
 `config.yaml`, without which the checkpoint cannot be rebuilt.
+
+Groups shorter than `group_size` are skipped, not padded: a padded group would
+contribute pairs that mean nothing to the loss.
+

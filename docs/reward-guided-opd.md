@@ -98,6 +98,18 @@ velocity models it takes as a callable, and `attach_lora_student` builds the
 rank-32 / alpha-64 student. A CPU test drives
 velocity -> flowmatch -> teacher -> rollout end to end.
 
-Still outside the release: the `train-rgopd` CLI subcommand refuses without
-`--dry-run`, so a paper run goes through the Python API above, and neither the
-published teacher registers nor the prompt sets are distributed here.
+## Running a real distillation
+
+`lrr train-rgopd` executes the above against real weights:
+
+```bash
+CHECKPOINT=/path/to/teacher-register.pt PROMPTS=prompts.txt \
+    bash scripts/train_rgopd_sd3.sh
+```
+
+`--rounds 1` gives a single rollout round, which is the cheapest way to confirm
+the path works before a long run. The LoRA adapter is written to
+`<output>/lora`.
+
+What the repository does not carry: the published teacher registers and the paper
+prompt sets. The command needs both from elsewhere.
