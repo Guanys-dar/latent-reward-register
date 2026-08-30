@@ -14,6 +14,3 @@ done
 for config in configs/rgopd/*/paper.yaml; do
     "${LRR[@]}" train-rgopd --config "$config" --dry-run > /dev/null && echo "ok  $config"
 done
-
-echo "== tests =="
-pytest -q

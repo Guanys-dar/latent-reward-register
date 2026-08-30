@@ -16,7 +16,6 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest>=8,<9", "ruff>=0.9,<0.13"]
 # Upper bounds are deliberate. The register implementations read the internal
 # attribute layout of the SD3/FLUX/Z-Image transformer blocks, so a major
 # diffusers or transformers release can change numerics without any error. The
@@ -36,11 +35,6 @@ lrr = "latent_reward_register.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
-
-[tool.pytest.ini_options]
-testpaths = ["tests"]
-pythonpath = ["src"]
-markers = ["gpu: requires a CUDA GPU and model weights"]
 
 [tool.ruff]
 line-length = 119

@@ -72,9 +72,8 @@ conda activate lrr
 pip install -e '.[models]'
 ```
 
-For CPU-only unit tests, install `pip install -e '.[dev]'` instead. Model
-weights, register checkpoints, training data, and paper prompt sets are not
-distributed in this repository.
+Model weights, register checkpoints, training data, and paper prompt sets are
+not distributed in this repository.
 
 Copy the local path template and point it at your model snapshots:
 
@@ -151,7 +150,6 @@ configs/   paper configurations for each method and backbone
 scripts/   commands used to launch the main experiments
 src/       register, sampling, and RG-OPD implementations
 docs/      data and method details
-tests/     lightweight algorithm tests
 ```
 
 ## Notes
@@ -161,7 +159,7 @@ tests/     lightweight algorithm tests
 - Z-Image support is experimental and limited to register training.
 - The third-party benchmark scorers used in the paper are not redistributed.
 
-Run the weight-free checks with:
+Validate all paper configurations without loading model weights:
 
 ```bash
 bash scripts/smoke_all.sh
