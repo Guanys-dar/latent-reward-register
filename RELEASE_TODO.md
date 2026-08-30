@@ -272,11 +272,28 @@ the release cannot mislead. The stale
 `flux_opd/eval_flux/outputs/_select/selection.json` still exists in the research
 workspace; deleting or renaming it there is optional cleanup.
 
-### 3.8 Paper draft layer values — CONFIRM IN THE PAPER
-Verified against the checked-in configs: SD3 `[4, 8, 12]`, FLUX `[9, 19, 28]`,
-Z-Image `[5, 10, 15]`, all following the 1/6-1/3-1/2 depth rule. A draft stating
-SD3 `{2, 5, 8}` matches no config and is recorded as superseded. The only action
-left is correcting the paper text.
+### 3.8 Paper table disagrees with the shipped FLUX config — FIX THE PAPER
+The repository configs are verified against the runs that produced the release
+checkpoints: SD3 `[4, 8, 12]` of 24, FLUX `[9, 19, 28]` of 57, Z-Image
+`[5, 10, 15]` of 30, all on the 1/6-1/3-1/2 depth rule with the register
+stopping at half depth. The FLUX values were confirmed against the actual
+training config,
+`node5/outputs/reward_register_flux_unified_v3/flux_exp20_unified_v3.yaml`,
+whose `reward_token` block matches `configs/register/flux/paper.yaml`.
+
+`rt_guided_sampling_iclr2027.tex` Table `tab:register-training-config`
+disagrees in the FLUX column on both rows:
+
+| Paper line | Row | Paper says | Should say |
+| --- | --- | --- | --- |
+| 767 | Register-equipped blocks $L$ | 12 (of 38) / 8 (of 19 double blocks) | 12 (of 24) / 28 (of 57) |
+| 768 | Feature-snapshot blocks $\mathcal{B}$ | $\{4,8,12\}$ / $\{2,5,8\}$ | $\{4,8,12\}$ / $\{9,19,28\}$ |
+
+The SD3 taps `{4,8,12}` are correct; only the FLUX column and SD3's block total
+are wrong. Note the register spans 28 FLUX blocks, not 8, and reaches into the
+single-stream stack — tap 19 is the *last* double-stream block, not an interior
+one, so "of 19 double blocks" also mis-describes the architecture. No repository
+change is needed; this is a paper edit.
 
 ---
 

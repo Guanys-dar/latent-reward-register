@@ -52,8 +52,10 @@ Tap 19 on FLUX is the last double-stream block.
 - The release baseline is **exp11** for SD3: `[4, 8, 12]` taps, 12 register
   layers, `skip_attn2=true`, three heads at equal weight. Later exp15/exp16
   variants (single `[4]` tap, truncated trunk) are exploratory, not the release.
-- A paper draft states SD3 taps `{2, 5, 8}`. That matches no checked-in config
-  and is superseded by the exp11 values above.
+- The paper's register-training table lists `{2, 5, 8}` in the **FLUX** column,
+  not the SD3 one. It does not match the shipped FLUX config either, which taps
+  `[9, 19, 28]` of 57 blocks. The configs in this repository are authoritative;
+  see `RELEASE_TODO.md` section 3.8 for the exact paper lines to correct.
 - SD3 trains three heads; FLUX and Z-Image unified-v3 train two. Head count is
   per-backbone and must not be unified.
 - RG-OPD teacher registers differ per backbone: SD3 uses the **exp11** EMA
