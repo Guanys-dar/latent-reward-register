@@ -1,10 +1,26 @@
-e7d7ecf7b9d263459fc018dbe6c449129cddd3432cda61fef0addadfe8efdc10  models/backbone.py
-ed5f8d00746293558f64459e754d954ad1a67a65e99da8fdb73c03b7c6e35620  models/latent_reward_grid.py
+# SHA-256 of the vendored research implementations, as released.
+#
+# These files are ports of the code that produced the paper's numbers. They are
+# NOT byte-identical to the research originals: each carries a module docstring,
+# the frozen-trunk `torch.no_grad()` calls became `frozen_trunk_context()` so the
+# latent-gradient path can be enabled (see docs/latent-gradients.md), and the
+# Z-Image module's imports were made relative. Those are the only intended
+# changes; the architecture and numerics are untouched, which is what keeps the
+# published checkpoints loadable.
+#
+# This manifest pins the released bytes so later drift is detectable.
+# tests/test_implementation_checksums.py verifies it. By hand:
+#
+#     cd src/latent_reward_register/implementations
+#     sha256sum -c ../../../docs/IMPLEMENTATION_SHA256SUMS
+#
+22805eb6a6153a0430342c81b1dd0394d0a2951b3502d68067b46435ae64d047  models/backbone.py
+3ea00a7fd3d59d5dd7795127c933fcac5b0f1588cc3d2067a69d708294c42fe9  models/latent_reward_grid.py
 23f5d5e25c64874ffb32e1e9d8e6c18b9d1a78e63e0b82ba93f9958cb728a488  models/flux_backbone.py
-3bd7aac4718b8556262cb7f11b28759e1da3930a766d2c71a37bb22960ff89d2  models/flux_latent_reward_grid.py
+cfc225d1d4070ba389ae71d7a4d84dce53464a68a379e9ac00e1bba792423907  models/flux_latent_reward_grid.py
 60274402025f07f77074c4f2443d7a5ff713871044394ed7d758fa32489c0002  models/zimage_backbone.py
-f1b976df42f1645b11899a7e94f9551a3aeb31f1998fda67343fc30850bcaee4  models/zimage_latent_reward_grid.py
-3e87d21ac12ff51f27ea93e66fdb858171b7317811219e26504330b782b01b4e  models/pooling.py
-302fca0cb5b71f7fad45610e920492d476472f8be130a26ef984ff6b6e3cc031  flux_common.py
-d43bcb5255b34f2dd775d9e73b02e5f859a1d7db1085ab3932e45f69986841c2  zimage_common.py
-
+0ca68bffd4968f2cee8027cbabdae5cb13b19d2db1d7ff87723af5cf2c8a6378  models/zimage_latent_reward_grid.py
+0dbcc13929103246959114bf02c06635630029ab4039bf682bf7af8856978efd  models/pooling.py
+e77e7c43dd5e4f18e04af3a1308a5a3b03cc011965e230dd66f14fefbe89d066  models/reward_token_dina_head.py
+0eb911e883abdb46d51954d8399fab7910b7e29daf6972c7fd7c46534d8f5e72  flux_common.py
+0c29115211f07ba71a6c70e9314b49e41270cea4a5911fd3d82f301d0cee881d  zimage_common.py

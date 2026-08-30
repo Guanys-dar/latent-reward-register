@@ -11,6 +11,27 @@ outside the machine the research ran on.
 | SD3 RG-OPD | `rt-gradient-opd` → `RG-OPD` | `scripts/train_sd3_rgopd.py`, `rg_opd/` |
 | FLUX RG-OPD | `z-image-reward-matrix` → `node5/src` | `scripts/train_flux_rgopd.py`, `flux_opd/` |
 
+## What changed in the ported implementations
+
+The files under `src/latent_reward_register/implementations/` are ports, not
+copies. Three changes were made and nothing else; the architecture and numerics
+are untouched, which is what keeps the published checkpoints loadable.
+
+| Change | Why |
+| --- | --- |
+| Added a module docstring to each file | Names the source and warns against refactoring checkpoint-bearing code |
+| `torch.no_grad()` → `frozen_trunk_context()` in the frozen-trunk block loops | The trunk must stay frozen in training but be differentiable for RGS and RG-OPD; see `docs/latent-gradients.md` |
+| `import zimage_common` → relative import | The research tree relied on a flat `sys.path`; the release is a package |
+
+The pos-embed helper in `latent_reward_grid.py` keeps its literal
+`torch.no_grad()`: it slices a constant table and is not on the latent path.
+
+`docs/IMPLEMENTATION_SHA256SUMS` pins the released bytes of all ten vendored
+modules, and `tests/test_implementation_checksums.py` verifies both the digests
+and that the manifest covers every vendored file. It does not prove the port was
+faithful to the originals — those live only in the research workspace — it proves
+nothing has drifted since release.
+
 ## Layer tap rule
 
 All three backbones follow one rule rather than per-model magic numbers: taps at
