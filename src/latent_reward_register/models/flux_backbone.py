@@ -1,22 +1,19 @@
 """FLUX.1-dev reward backbone (frozen MMDiT front-end for the reward register).
 
-Mirrors the public surface of ``ZImageRewardBackbone`` (zimage_backbone.py) used by the
-engine and the reward-register model, but wraps ``FluxTransformer2DModel``:
+Wraps ``FluxTransformer2DModel`` for the reward-register model:
 
   * ``hidden_size``  -> transformer.inner_dim (3072)
   * ``num_layers``   -> 19 double-stream + 38 single-stream = 57 (the register model
     indexes this combined stack; blocks past ``stop_at_layer`` are never executed)
-  * timestep/sigma helpers are the scheduler-generic SD3/Z-Image semantics;
+  * timestep/sigma helpers follow the flow-matching scheduler semantics;
     ``sample_timesteps`` returns the continuous flow level u = sigma in [0, 1].
   * ``build_flux_inputs`` runs the frozen front-end of ``FluxTransformer2DModel.forward``
     under ``no_grad``: x_embedder on 2x2-packed latents, context_embedder on T5 embeds,
     temb from (timestep, guidance, CLIP-pooled), and the shared [txt, img] RoPE.
 
 Timestep convention (verified, transformer_flux.py:682): FLUX conditions on sigma
-DIRECTLY — ``temb = time_text_embed(u * 1000, guidance * 1000, pooled)``. There is NO
-``1 - u`` inversion (that is Z-Image's native convention; copying it here would
-re-introduce the fixv2 inverted-t bug in mirror image). ``flux_parity_check.py`` gates
-this against the stock forward.
+DIRECTLY — ``temb = time_text_embed(u * 1000, guidance * 1000, pooled)``. There is no
+``1 - u`` inversion.
 """
 from __future__ import annotations
 
@@ -28,7 +25,8 @@ import torch.nn as nn
 from diffusers import FlowMatchEulerDiscreteScheduler
 from diffusers.training_utils import compute_density_for_timestep_sampling
 
-from .. import flux_common
+from . import flux_utils
+from .gradmode import frozen_trunk_context
 
 
 class FluxRewardBackbone(nn.Module):
@@ -38,11 +36,11 @@ class FluxRewardBackbone(nn.Module):
         transformer: nn.Module,
         scheduler_config: dict,
         max_sequence_length: int = 512,
-        guidance_scale: float = flux_common.GUIDANCE_SCALE,
+        guidance_scale: float = flux_utils.GUIDANCE_SCALE,
     ):
         super().__init__()
         self.transformer = transformer
-        # scheduler_config is expected to come from flux_common.flux_scheduler_config()
+        # scheduler_config is expected to come from flux_utils.flux_scheduler_config()
         # (static 1024px shift pinned, dynamic shifting off).
         self.scheduler = FlowMatchEulerDiscreteScheduler.from_config(deepcopy(scheduler_config))
         self.max_sequence_length = max_sequence_length
@@ -60,21 +58,21 @@ class FluxRewardBackbone(nn.Module):
         torch_dtype: torch.dtype = torch.bfloat16,
         max_sequence_length: int = 512,
         local_files_only: bool = True,
-        guidance_scale: float = flux_common.GUIDANCE_SCALE,
+        guidance_scale: float = flux_utils.GUIDANCE_SCALE,
         revision: str | None = None,
         variant: str | None = None,
     ) -> "FluxRewardBackbone":
         del revision, variant
-        model_name_or_path = str(pretrained_model_name_or_path or flux_common.FLUX_MODEL_PATH)
+        model_name_or_path = str(pretrained_model_name_or_path or flux_utils.FLUX_MODEL_PATH)
         # Load only the transformer (skip T5/CLIP/VAE — embeddings/latents are precached).
-        transformer = flux_common.load_flux_transformer(
+        transformer = flux_utils.load_flux_transformer(
             dtype=torch_dtype,
             local_files_only=local_files_only,
             model_name_or_path=model_name_or_path,
         )
         return cls(
             transformer=transformer,
-            scheduler_config=flux_common.flux_scheduler_config(model_name_or_path),
+            scheduler_config=flux_utils.flux_scheduler_config(model_name_or_path),
             max_sequence_length=max_sequence_length,
             guidance_scale=guidance_scale,
         )
@@ -140,7 +138,7 @@ class FluxRewardBackbone(nn.Module):
         return self
 
     # ------------------------------------------------------------------
-    # Timestep / sigma (scheduler-generic; identical semantics to SD3/Z-Image)
+    # Timestep / sigma
     # ------------------------------------------------------------------
     def get_sigmas(
         self,
@@ -212,14 +210,14 @@ class FluxRewardBackbone(nn.Module):
         """
         t = self.transformer
         device = noisy_latents.device
-        with torch.no_grad():
-            packed = flux_common.pack_latents(noisy_latents)
+        with frozen_trunk_context():
+            packed = flux_utils.pack_latents(noisy_latents)
             img = t.x_embedder(packed)
             txt = t.context_embedder(prompt_embeds.to(dtype=img.dtype))
 
             # Verbatim transformer.forward semantics: timestep and guidance are the RAW
             # values (u = sigma, guidance = 3.5) scaled *1000 in the transformer's dtype.
-            # u DIRECTLY — no ``1.0 - u`` (Flux != Z-Image; see module docstring).
+            # FLUX consumes u directly; there is no ``1.0 - u`` conversion.
             timestep = u.to(dtype=img.dtype) * 1000
             guidance = torch.full_like(u, self.guidance_scale).to(dtype=img.dtype) * 1000
             temb = t.time_text_embed(timestep, guidance, pooled_prompt_embeds.to(dtype=img.dtype))
@@ -227,7 +225,7 @@ class FluxRewardBackbone(nn.Module):
             grid_h = noisy_latents.shape[2] // 2
             grid_w = noisy_latents.shape[3] // 2
             txt_ids = torch.zeros(prompt_embeds.shape[1], 3, device=device, dtype=img.dtype)
-            img_ids = flux_common.prepare_latent_image_ids(grid_h, grid_w, device, img.dtype)
+            img_ids = flux_utils.prepare_latent_image_ids(grid_h, grid_w, device, img.dtype)
             ids = torch.cat((txt_ids, img_ids), dim=0)
             rotary = t.pos_embed(ids)
 

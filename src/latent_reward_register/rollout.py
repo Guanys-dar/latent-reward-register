@@ -18,7 +18,6 @@ from typing import Protocol
 
 import torch
 
-from .rgopd import rgopd_loss
 from .teacher import RewardGradientTeacher
 from .types import RegisterCondition
 
@@ -77,6 +76,24 @@ class RolloutConfig:
     def optimizes(self, step_index: int) -> bool:
         limit = self.optimized_steps if self.optimized_steps is not None else self.steps
         return step_index < limit
+
+
+def rgopd_loss(
+    student_next: torch.Tensor,
+    target: torch.Tensor,
+    transition_std: torch.Tensor | float,
+) -> torch.Tensor:
+    standard_deviation = torch.as_tensor(
+        transition_std, device=student_next.device, dtype=student_next.dtype
+    )
+    if standard_deviation.ndim == 1 and student_next.ndim > 1:
+        if standard_deviation.shape[0] != student_next.shape[0]:
+            raise ValueError("Per-sample transition_std must match the batch dimension")
+        standard_deviation = standard_deviation.reshape(
+            -1, *([1] * (student_next.ndim - 1))
+        )
+    variance = standard_deviation.square()
+    return ((student_next - target).square() / (2.0 * variance.clamp_min(1e-12))).mean()
 
 
 @torch.no_grad()

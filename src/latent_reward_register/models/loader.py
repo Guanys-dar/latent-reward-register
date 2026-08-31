@@ -6,6 +6,7 @@ published checkpoints, so prefer provenance notes over refactoring here.
 """
 from __future__ import annotations
 
+from contextlib import nullcontext
 from pathlib import Path
 from typing import Any
 
@@ -45,11 +46,18 @@ def _architecture_kwargs(config: dict[str, Any]) -> dict[str, Any]:
 
 
 class CheckpointRewardRegister(nn.Module):
-    def __init__(self, model: nn.Module, backbone: str, head_names: tuple[str, ...]):
+    def __init__(
+        self,
+        model: nn.Module,
+        backbone: str,
+        head_names: tuple[str, ...],
+        compute_dtype: torch.dtype = torch.float32,
+    ):
         super().__init__()
         self.model = model
         self.backbone = backbone
         self.head_names = head_names
+        self.compute_dtype = compute_dtype
 
     def timesteps_from_sigma(self, sigma: torch.Tensor) -> torch.Tensor:
         """Convert sampler noise levels to the backbone's reward-time convention."""
@@ -61,7 +69,7 @@ class CheckpointRewardRegister(nn.Module):
         """Score one latent per prompt. Returns ``{head: (batch,)}``."""
         model_latents = latents
         if self.backbone == "flux" and latents.ndim == 3:
-            from .flux_common import unpack_latents
+            from .flux_utils import unpack_latents
 
             grid = int(latents.shape[1] ** 0.5)
             if grid * grid != latents.shape[1]:
@@ -85,11 +93,16 @@ class CheckpointRewardRegister(nn.Module):
             raise ValueError(f"Expected (batch, group_size, ...) latents, got {tuple(latents.shape)}")
         batch_size, group_size = latents.shape[:2]
         kwargs = {"prompt_embeds": condition.prompt_embeds, "timesteps": timesteps}
-        if self.backbone != "z-image":
-            if condition.pooled_prompt_embeds is None:
-                raise ValueError(f"{self.backbone} requires pooled prompt embeddings")
-            kwargs["pooled_prompt_embeds"] = condition.pooled_prompt_embeds
-        scores = self.model(latents, **kwargs)
+        if condition.pooled_prompt_embeds is None:
+            raise ValueError(f"{self.backbone} requires pooled prompt embeddings")
+        kwargs["pooled_prompt_embeds"] = condition.pooled_prompt_embeds
+        autocast = (
+            torch.autocast(device_type=latents.device.type, dtype=self.compute_dtype)
+            if self.compute_dtype in {torch.bfloat16, torch.float16}
+            else nullcontext()
+        )
+        with autocast:
+            scores = self.model(latents, **kwargs)
         return {name: value.reshape(batch_size, group_size) for name, value in scores.items()}
 
     def forward(self, latents: torch.Tensor, condition: RegisterCondition, timesteps: torch.Tensor):
@@ -135,13 +148,11 @@ def load_legacy_register(
     local_files_only: bool = True,
 ) -> CheckpointRewardRegister:
     payload = read_legacy_checkpoint(checkpoint_path)
-    from .models import (
+    from . import (
         FluxLatentRewardGridPoolNoPEMultiHeadModel,
         FluxRewardBackbone,
         SD3LatentRewardGridPoolNoPEMultiHeadModel,
         SD3RewardBackbone,
-        ZImageLatentRewardGridPoolNoPEMultiHeadModel,
-        ZImageRewardBackbone,
     )
     config = payload["config"]
     architecture = str(config["reward_token"]["architecture"]).lower()
@@ -161,10 +172,6 @@ def load_legacy_register(
             **backbone_kwargs,
         )
         model = FluxLatentRewardGridPoolNoPEMultiHeadModel(backbone, **architecture_kwargs)
-    elif architecture.startswith("zimage_"):
-        backbone_name = "z-image"
-        backbone = ZImageRewardBackbone.from_pretrained(model_name_or_path, **backbone_kwargs)
-        model = ZImageLatentRewardGridPoolNoPEMultiHeadModel(backbone, **architecture_kwargs)
     else:
         backbone_name = "sd3"
         backbone = SD3RewardBackbone.from_pretrained(model_name_or_path, **backbone_kwargs)
@@ -177,4 +184,9 @@ def load_legacy_register(
     else:
         model.load_state_dict(state, strict=True)
     model.eval()
-    return CheckpointRewardRegister(model, backbone_name, tuple(config["reward_token"]["head_names"]))
+    return CheckpointRewardRegister(
+        model,
+        backbone_name,
+        tuple(config["reward_token"]["head_names"]),
+        compute_dtype=dtype,
+    )

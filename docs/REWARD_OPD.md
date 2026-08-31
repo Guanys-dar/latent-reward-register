@@ -5,7 +5,7 @@ generates its own trajectory, and the shared reward-gradient teacher constructs
 the target at each visited state.
 
 Both paper presets use ten-step rollouts, optimize the first nine transitions,
-and train a rank-32, alpha-64 LoRA student:
+and train a rank-32, alpha-64 LoRA student for 300 epochs:
 
 | Backbone | Config | Reward scale |
 | --- | --- | --- |

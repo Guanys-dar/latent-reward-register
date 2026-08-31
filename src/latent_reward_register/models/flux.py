@@ -1,10 +1,9 @@
 """FLUX.1-dev reward register (2-head) — architecture port of exp11.
 
-``FluxLatentRewardGridPoolNoPEMultiHeadModel`` mirrors
-``ZImageLatentRewardGridPoolNoPEMultiHeadModel`` but rides on the FLUX MMDiT via
-``FluxRewardBackbone``. Everything above the trunk is reused verbatim from
-``latent_reward_grid`` (``LatentRewardGridHead``, ``_SpatialPool2d``, ``score_mlps``).
-The load-bearing changes vs the Z-Image port:
+``FluxLatentRewardGridPoolNoPEMultiHeadModel`` rides on the FLUX MMDiT via
+``FluxRewardBackbone``. Everything above the trunk is reused from
+the SD3 register (``LatentRewardGridHead``, ``_SpatialPool2d``, ``score_mlps``).
+The FLUX-specific details are:
 
   * Frozen trunk = 19 double-stream blocks (separate img/txt streams, joint attention)
     then single-stream blocks (concat ``[txt, img]``), run by
@@ -18,7 +17,7 @@ The load-bearing changes vs the Z-Image port:
     ids = zeros — they sit positionally where the text tokens sit).
   * Timestep: u = sigma passed straight through (NO ``1 - u``; see flux_backbone.py).
   * temb is 3072-dim (= hidden_size): ``temb_proj`` is a same-dim trainable bridge
-    into the head's FiLM adapters (Z-Image needed 256 -> 3840).
+    into the head's FiLM adapters.
   * No caption masking / trimming: stock Flux attends T5 padding; the full 512-token
     text stream is the faithful text feature.
   * ``side_stream_ffn`` applies to double blocks only — in single blocks the MLP is
@@ -36,9 +35,9 @@ import torch.nn.functional as F
 from diffusers.models.embeddings import apply_rotary_emb
 
 from .flux_backbone import FluxRewardBackbone
-from .latent_reward_grid import LatentRewardGridHead, _SpatialPool2d
-from .reward_token_dina_head import _normalize_layer_indices
-from ..gradmode import frozen_trunk_context
+from .sd3 import LatentRewardGridHead, _SpatialPool2d
+from .attention import _normalize_layer_indices
+from .gradmode import frozen_trunk_context
 
 
 def run_flux_double_block(block, img, txt, temb, rotary):
@@ -202,7 +201,7 @@ class FluxLatentRewardGridPoolNoPEMultiHeadModel(nn.Module):
         )
 
         # FiLM temb bridge: FLUX temb is already hidden_size-dim (3072); keep a trainable
-        # same-dim Linear so the head FiLM interface matches the Z-Image port exactly.
+        # Same-dim linear bridge into the head's FiLM interface.
         self.adaln_embed_dim = hidden_size
         self.temb_proj = nn.Linear(self.adaln_embed_dim, hidden_size)
 
@@ -262,7 +261,7 @@ class FluxLatentRewardGridPoolNoPEMultiHeadModel(nn.Module):
 
     # ------------------------------------------------------------------
     # Register side-stream (one-way: register queries frozen K/V; frozen stream
-    # never sees the register — same design as exp11 / the Z-Image port)
+    # never sees the register, matching the exp11 design)
     # ------------------------------------------------------------------
     def _side_stream_double(self, block, reward_states, temb, k_full, v_full):
         attn = block.attn
@@ -331,8 +330,8 @@ class FluxLatentRewardGridPoolNoPEMultiHeadModel(nn.Module):
     def forward(self, latents, *, prompt_embeds, pooled_prompt_embeds, timesteps):
         if pooled_prompt_embeds is None or pooled_prompt_embeds.ndim != 2:
             raise ValueError(
-                "FLUX requires the REAL CLIP pooled embeds [B, 768] (the Z-Image dummy "
-                "pooled tensor is not usable — re-point the manifest to the flux cache)"
+                "FLUX requires the real CLIP pooled embeds [B, 768]; "
+                "re-point the manifest to the FLUX cache"
             )
         (
             batch_size,
@@ -451,4 +450,3 @@ class FluxLatentRewardGridPoolNoPEMultiHeadModel(nn.Module):
             self.temb_proj.load_state_dict(state["temb_proj"])
         if "score_mlps" in state:
             self.score_mlps.load_state_dict(state["score_mlps"])
-

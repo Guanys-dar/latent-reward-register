@@ -1,8 +1,7 @@
 # Register training
 
-The same training loop supports SD3-Medium, FLUX.1-dev, and experimental
-Z-Image registers. Backbone-specific feature extraction stays in the model
-implementation.
+The same training loop supports SD3-Medium and FLUX.1-dev. Backbone-specific
+feature extraction stays in the model implementation.
 
 ## Input data
 
@@ -32,7 +31,8 @@ does not run the VAE or text encoder. Groups shorter than `--group-size` are
 skipped rather than padded.
 
 The paper checkpoints use DiNa pairs, so the release scripts set
-`--group-size 2`.
+`--training-parquet` and `--multihead-manifest`. The scripts read these from
+`PARQUET` and `MULTIHEAD_MANIFEST`; neither path is stored in the paper preset.
 
 `head_names` and `score_keys` in the register config are parallel lists; keep
 their ordering aligned. `vis_h` and `vis_w` are transformer token dimensions,
@@ -41,13 +41,13 @@ not image pixels.
 ## Commands
 
 ```bash
-MANIFEST=/path/to/groups.jsonl bash scripts/train_register_sd3.sh
-MANIFEST=/path/to/groups.jsonl bash scripts/train_register_flux.sh
+MANIFEST=/path/to/groups.jsonl PARQUET='/path/to/pairs/*.parquet' \
+  MULTIHEAD_MANIFEST=/path/to/scored-groups.jsonl bash scripts/train_register_sd3.sh
+MANIFEST=/path/to/groups.jsonl PARQUET=/path/to/pairs.parquet \
+  MULTIHEAD_MANIFEST=/path/to/scored-groups.jsonl bash scripts/train_register_flux.sh
 ```
 
-Use `--max-batches 4` for a short real-model check. Z-Image uses
-`configs/register/zimage/paper.yaml` directly and is provided as experimental
-register support only.
+Use `--max-batches 4` for a short real-model check.
 
 Checkpoints include the register architecture config needed to reconstruct the
 model. Published or pretrained checkpoints are external assets.

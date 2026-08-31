@@ -7,7 +7,7 @@ set -euo pipefail
 CHECKPOINT="${CHECKPOINT:?set CHECKPOINT to the FLUX teacher register (unified-v3 EMA)}"
 PROMPTS="${PROMPTS:?set PROMPTS to a file of prompts, one per line}"
 OUTPUT="${OUTPUT:-outputs/rgopd_flux}"
-ROUNDS="${ROUNDS:-100}"
+ROUNDS="${ROUNDS:-300}"
 
 lrr train-rgopd \
     --config configs/rgopd/flux/paper.yaml \

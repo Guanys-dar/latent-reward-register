@@ -26,7 +26,11 @@ class CheckpointManifest:
 def save_register_checkpoint(directory: str | Path, model, manifest: CheckpointManifest, config: Mapping[str, Any]) -> None:
     output = Path(directory)
     output.mkdir(parents=True, exist_ok=True)
-    state = {name: tensor.detach().cpu().contiguous() for name, tensor in model.state_dict().items()}
+    state = {
+        name: parameter.detach().cpu().contiguous()
+        for name, parameter in model.named_parameters()
+        if parameter.requires_grad
+    }
     save_file(state, output / "register.safetensors")
     (output / "manifest.json").write_text(json.dumps(asdict(manifest), indent=2, sort_keys=True) + "\n")
     (output / "config.yaml").write_text(yaml.safe_dump(dict(config), sort_keys=False))
@@ -39,7 +43,16 @@ def load_register_checkpoint(directory: str | Path, model) -> tuple[CheckpointMa
     manifest_payload["feature_layers"] = tuple(manifest_payload["feature_layers"])
     manifest = CheckpointManifest(**manifest_payload)
     config = yaml.safe_load((checkpoint / "config.yaml").read_text())
-    model.load_state_dict(load_file(checkpoint / "register.safetensors"), strict=True)
+    state = load_file(checkpoint / "register.safetensors")
+    expected = {name for name, parameter in model.named_parameters() if parameter.requires_grad}
+    actual = set(state)
+    if actual != expected:
+        missing = sorted(expected - actual)
+        unexpected = sorted(actual - expected)
+        raise ValueError(
+            f"Register checkpoint parameter mismatch; missing={missing}, unexpected={unexpected}"
+        )
+    model.load_state_dict(state, strict=False)
     return manifest, config
 
 
@@ -48,4 +61,3 @@ def read_legacy_checkpoint(path: str | Path) -> dict[str, Any]:
     if not isinstance(payload, dict) or "config" not in payload or "model" not in payload:
         raise ValueError("Legacy checkpoint must contain self-describing 'config' and 'model' entries")
     return payload
-

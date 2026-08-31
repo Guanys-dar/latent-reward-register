@@ -17,7 +17,7 @@ dependencies = [
 
 [project.optional-dependencies]
 # Upper bounds are deliberate. The register implementations read the internal
-# attribute layout of the SD3/FLUX/Z-Image transformer blocks, so a major
+# attribute layout of the SD3/FLUX transformer blocks, so a major
 # diffusers or transformers release can change numerics without any error. The
 # diffusers revision is pinned exactly for the same reason.
 models = [
@@ -26,6 +26,7 @@ models = [
   "numpy>=1.26,<3",
   "peft>=0.15,<0.18",
   "pillow>=10,<12",
+  "pyarrow>=14,<22",
   "transformers>=4.41,<5",
 ]
 tracking = ["swanlab", "wandb"]
@@ -40,7 +41,7 @@ where = ["src"]
 line-length = 119
 # Model implementations follow the original experiment code and are excluded
 # from mechanical style rewrites that could change checkpoint compatibility.
-extend-exclude = ["src/latent_reward_register/implementations/models", "src/latent_reward_register/implementations/flux_common.py", "src/latent_reward_register/implementations/zimage_common.py"]
+extend-exclude = ["src/latent_reward_register/models"]
 
 [tool.ruff.lint]
 extend-select = ["I", "UP", "SIM"]

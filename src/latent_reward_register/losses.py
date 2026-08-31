@@ -115,10 +115,11 @@ def multihead_group_loss(
     *,
     sigmas: torch.Tensor,
     head_weights: Mapping[str, float] | None = None,
+    head_masks: Mapping[str, torch.Tensor] | None = None,
     group_mask: torch.Tensor | None = None,
     min_target_gap: float = 0.0,
 ) -> tuple[torch.Tensor, dict[str, GroupLossOutput]]:
-    """Weighted mean of the per-head group losses.
+    """Weighted sum of the per-head group losses.
 
     Every head runs the same objective on its own teacher scores; SD3 exp11
     trains three heads at equal weight.
@@ -129,12 +130,19 @@ def multihead_group_loss(
         raise ValueError("At least one reward head is required")
 
     head_weights = head_weights or {}
+    head_masks = head_masks or {}
     per_head = {
         name: dina_thurstone_loss(
             predictions[name],
             targets[name],
             sigmas=sigmas,
-            group_mask=group_mask,
+            group_mask=(
+                head_masks[name]
+                if group_mask is None and name in head_masks
+                else group_mask & head_masks[name]
+                if name in head_masks
+                else group_mask
+            ),
             min_target_gap=min_target_gap,
         )
         for name in predictions
@@ -142,5 +150,42 @@ def multihead_group_loss(
     total_weight = sum(float(head_weights.get(name, 1.0)) for name in per_head)
     if total_weight <= 0:
         raise ValueError("At least one reward head must have positive weight")
-    total = sum(per_head[name].loss * float(head_weights.get(name, 1.0)) for name in per_head) / total_weight
+    total = sum(per_head[name].loss * float(head_weights.get(name, 1.0)) for name in per_head)
     return total, per_head
+
+
+def multihead_loss_from_original_batch(
+    predictions: Mapping[str, torch.Tensor],
+    targets: torch.Tensor,
+    *,
+    head_masks: torch.Tensor,
+    group_mask: torch.Tensor,
+    sigmas: torch.Tensor,
+    head_names: tuple[str, ...] | list[str],
+    head_weights: Mapping[str, float] | None = None,
+    head_loss_types: Mapping[str, str] | None = None,
+    min_target_gap: float = 0.0,
+) -> tuple[torch.Tensor, dict[str, GroupLossOutput]]:
+    """Adapter for the original ordered ``[B,H,G]`` multi-head batch contract."""
+    if targets.ndim != 3 or head_masks.shape != targets.shape:
+        raise ValueError("Original targets and head_masks must both have shape [B,H,G]")
+    if targets.shape[1] != len(head_names):
+        raise ValueError("head_names must match the ordered target head dimension")
+    loss_types = head_loss_types or {name: "dina_thurstone" for name in head_names}
+    unsupported = {
+        name: loss_types.get(name, "regression_rank")
+        for name in head_names
+        if loss_types.get(name, "regression_rank").lower()
+        not in {"thurstone", "dina_thurstone", "dina", "preference"}
+    }
+    if unsupported:
+        raise ValueError(f"Release paper adapter supports Thurstone heads only: {unsupported}")
+    return multihead_group_loss(
+        predictions,
+        {name: targets[:, index] for index, name in enumerate(head_names)},
+        sigmas=sigmas,
+        head_weights=head_weights,
+        head_masks={name: head_masks[:, index] for index, name in enumerate(head_names)},
+        group_mask=group_mask,
+        min_target_gap=min_target_gap,
+    )

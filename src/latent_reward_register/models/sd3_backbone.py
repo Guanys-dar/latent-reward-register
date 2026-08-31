@@ -255,7 +255,7 @@ class SD3RewardBackbone(nn.Module):
         *,
         collect_cross: bool,
     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor | None]:
-        """Run one frozen SD3 joint block by hand (mirrors latent_reward_grid's
+        """Run one frozen SD3 joint block by hand (mirrors the register's
         ``_run_frozen_sd3_block``) and, when ``collect_cross`` is set, additionally
         return the image->text cross-attention weights, mean-pooled over heads, as
         ``[B, N_img, N_txt]``.

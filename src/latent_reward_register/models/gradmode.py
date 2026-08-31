@@ -12,7 +12,7 @@ the trunk to run with grad enabled while the trunk *weights* stay frozen.
 The research code achieved this by rebinding the per-block helper to a
 grad-enabled clone of its body. This module keeps the same math but makes the
 choice explicit and reversible: the block bodies consult
-``latent_reward_register.implementations.gradmode`` instead of hardcoding
+``latent_reward_register.models.gradmode`` instead of hardcoding
 ``torch.no_grad()``, and callers opt in with :func:`latent_gradient_enabled`.
 
 Trunk parameters are never unfrozen. Only the latent path is restored.

@@ -92,8 +92,10 @@ Register training uses cached latents and prompt embeddings grouped by prompt.
 See [docs/TRAIN_REGISTER.md](docs/TRAIN_REGISTER.md) for the manifest format.
 
 ```bash
-MANIFEST=/path/to/groups.jsonl bash scripts/train_register_sd3.sh
-MANIFEST=/path/to/groups.jsonl bash scripts/train_register_flux.sh
+MANIFEST=/path/to/groups.jsonl PARQUET='/path/to/pairs/*.parquet' \
+  MULTIHEAD_MANIFEST=/path/to/scored-groups.jsonl bash scripts/train_register_sd3.sh
+MANIFEST=/path/to/groups.jsonl PARQUET=/path/to/pairs.parquet \
+  MULTIHEAD_MANIFEST=/path/to/scored-groups.jsonl bash scripts/train_register_flux.sh
 ```
 
 ### Reward-guided sampling
@@ -126,7 +128,7 @@ See [docs/REWARD_OPD.md](docs/REWARD_OPD.md) for rollout and student settings.
 Paper presets live in:
 
 ```text
-configs/register/{sd3,flux,zimage}/paper.yaml
+configs/register/{sd3,flux}/paper.yaml
 configs/rgs/{sd3,flux}/paper.yaml
 configs/rgopd/{sd3,flux}/paper.yaml
 ```
@@ -134,7 +136,9 @@ configs/rgopd/{sd3,flux}/paper.yaml
 All scripts call the same three commands:
 
 ```bash
-lrr train-register --config CONFIG --training-manifest MANIFEST --output-directory OUTPUT
+lrr train-register --config CONFIG --training-manifest MANIFEST \
+  --training-parquet PARQUET --multihead-manifest MULTIHEAD_MANIFEST \
+  --output-directory OUTPUT
 lrr sample --config CONFIG --register-checkpoint CHECKPOINT --prompt-file PROMPTS --output-directory OUTPUT
 lrr train-rgopd --config CONFIG --register-checkpoint CHECKPOINT --prompt-file PROMPTS --output-directory OUTPUT
 ```
@@ -156,13 +160,12 @@ docs/      data and method details
 
 - The exact Diffusers revision in `pyproject.toml` is intentional: the register
   reads intermediate transformer states whose layout changes across releases.
-- Z-Image support is experimental and limited to register training.
 - The third-party benchmark scorers used in the paper are not redistributed.
 
 Validate all paper configurations without loading model weights:
 
 ```bash
-bash scripts/smoke_all.sh
+bash scripts/validate_configs.sh
 ```
 
 ## Acknowledgements

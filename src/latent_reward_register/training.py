@@ -1,11 +1,11 @@
 """The shared register training loop.
 
-Backbone-agnostic on purpose: it needs only ``score_groups``, so it drives a
-model-backed ``CheckpointRewardRegister`` and the weight-free
-``ReferenceRewardRegister`` alike.
+Backbone-agnostic on purpose: it needs only ``score_groups`` from a model-backed
+``CheckpointRewardRegister``.
 """
 from __future__ import annotations
 
+import random
 from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
@@ -17,6 +17,19 @@ from torch.optim import AdamW
 from .checkpoint import CheckpointManifest, save_register_checkpoint
 from .losses import multihead_group_loss
 from .types import RegisterCondition
+
+
+def seed_everything(seed: int) -> None:
+    random.seed(seed)
+    try:
+        import numpy as np
+
+        np.random.seed(seed)
+    except ImportError:
+        pass
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(seed)
 
 
 @dataclass
@@ -33,6 +46,7 @@ class GroupBatch:
     sigma: torch.Tensor
     targets: dict[str, torch.Tensor]
     group_mask: torch.Tensor | None = None
+    head_masks: dict[str, torch.Tensor] | None = None
 
 
 class TrainableRegister(Protocol):
@@ -66,20 +80,62 @@ class TrainConfig:
 class EMA:
     def __init__(self, model: torch.nn.Module, decay: float):
         self.decay = decay
-        self.state = {name: value.detach().clone() for name, value in model.state_dict().items()}
+        self.state = {
+            name: parameter.detach().clone().float()
+            for name, parameter in model.named_parameters()
+            if parameter.requires_grad
+        }
 
     @torch.no_grad()
     def update(self, model: torch.nn.Module) -> None:
-        for name, value in model.state_dict().items():
-            if value.is_floating_point():
-                self.state[name].lerp_(value.detach(), 1.0 - self.decay)
-            else:
-                self.state[name].copy_(value.detach())
+        for name, parameter in model.named_parameters():
+            if parameter.requires_grad:
+                self.state[name].mul_(self.decay).add_(
+                    parameter.detach().float(), alpha=1.0 - self.decay
+                )
 
     @torch.no_grad()
     def copy_to(self, model: torch.nn.Module) -> dict[str, torch.Tensor]:
-        backup = {name: value.detach().clone() for name, value in model.state_dict().items()}
-        model.load_state_dict(self.state, strict=True)
+        parameters = dict(model.named_parameters())
+        backup = {name: parameters[name].detach().clone() for name in self.state}
+        for name, value in self.state.items():
+            parameters[name].copy_(value.to(device=parameters[name].device, dtype=parameters[name].dtype))
+        return backup
+
+
+class RGOPDEMA:
+    """EMA used by the original SD3 and FLUX RG-OPD trainers."""
+
+    def __init__(self, model: torch.nn.Module, decay: float, update_step_interval: int = 8):
+        self.decay = decay
+        self.update_step_interval = update_step_interval
+        self.state = {
+            name: parameter.detach().clone()
+            for name, parameter in model.named_parameters()
+            if parameter.requires_grad
+        }
+
+    def current_decay(self, optimization_step: int) -> float:
+        return min((1 + optimization_step) / (10 + optimization_step), self.decay)
+
+    @torch.no_grad()
+    def update(self, model: torch.nn.Module, optimization_step: int) -> None:
+        if (optimization_step + 1) % self.update_step_interval:
+            return
+        one_minus_decay = 1.0 - self.current_decay(optimization_step)
+        parameters = dict(model.named_parameters())
+        for name, ema_parameter in self.state.items():
+            parameter = parameters[name]
+            ema_parameter.add_(
+                one_minus_decay * (parameter.detach().to(ema_parameter.device) - ema_parameter)
+            )
+
+    @torch.no_grad()
+    def copy_to(self, model: torch.nn.Module) -> dict[str, torch.Tensor]:
+        parameters = dict(model.named_parameters())
+        backup = {name: parameters[name].detach().clone() for name in self.state}
+        for name, value in self.state.items():
+            parameters[name].copy_(value.to(device=parameters[name].device))
         return backup
 
 
@@ -102,6 +158,11 @@ def _move_batch(batch: GroupBatch, device: torch.device) -> GroupBatch:
         sigma=batch.sigma.to(device),
         targets={name: value.to(device) for name, value in batch.targets.items()},
         group_mask=batch.group_mask.to(device) if batch.group_mask is not None else None,
+        head_masks=(
+            {name: value.to(device) for name, value in batch.head_masks.items()}
+            if batch.head_masks is not None
+            else None
+        ),
     )
 
 
@@ -132,6 +193,7 @@ def _noise_batch(
         sigma=loss_sigmas,
         targets=batch.targets,
         group_mask=batch.group_mask,
+        head_masks=batch.head_masks,
     ), timesteps
 
 
@@ -179,6 +241,7 @@ def train_register(
                 batch.targets,
                 sigmas=batch.sigma,
                 head_weights=head_weights,
+                head_masks=batch.head_masks,
                 group_mask=batch.group_mask,
                 min_target_gap=config.min_target_gap,
             )
@@ -210,4 +273,4 @@ def train_register(
             {"train": config.__dict__, "register": dict(register_config)},
         )
     finally:
-        model.load_state_dict(raw_state, strict=True)
+        model.load_state_dict(raw_state, strict=False)

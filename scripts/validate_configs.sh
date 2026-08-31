@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Weight-free checks for a fresh installation.
+# Validate the paper configurations without loading model weights.
 set -euo pipefail
 export PYTHONPATH="src${PYTHONPATH:+:$PYTHONPATH}"
 LRR=(python -m latent_reward_register.cli)

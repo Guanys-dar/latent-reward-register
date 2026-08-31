@@ -29,8 +29,16 @@ register:
   dropout: 0.0
   use_proj_in: false
   use_self_attn: true
+data:
+  format: multihead_dina_pair
+  latents_from_manifest: true
 train:
+  seed: 42
   epochs: 3
+  group_size: 2
+  batch_size: 4
+  shuffle: true
+  drop_last: true
   global_batch_size: 32
   precision: bf16
   learning_rate: 5.0e-5

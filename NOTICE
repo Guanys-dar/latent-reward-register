@@ -12,9 +12,9 @@ Third-party dependencies and models
 This package interoperates with, but does not distribute:
 
 - Hugging Face diffusers (Apache-2.0). The register implementations depend on
-  the internal attribute layout of the SD3/FLUX/Z-Image transformer blocks, so
+  the internal attribute layout of the SD3/FLUX transformer blocks, so
   the revision is pinned in pyproject.toml. Upgrading may change numerics.
-- Stable Diffusion 3 Medium, FLUX.1-dev, and Z-Image-Turbo model weights, each
+- Stable Diffusion 3 Medium and FLUX.1-dev model weights, each
   subject to its own upstream license and access terms.
 - Teacher reward models used to produce training scores: HPSv3, PickScore v1,
   and ImageReward, each under its own license.

@@ -3,12 +3,24 @@ backbone: flux
 rollout_steps: 10
 optimized_steps: 9
 rollout_batches_per_update: 4
+rounds: 300
+batch_size: 2
+distributed_world_size: 8
+prompt_repeats: 1
+learning_rate: 3.0e-4
+weight_decay: 1.0e-4
+adam_beta1: 0.9
+adam_beta2: 0.999
+adam_epsilon: 1.0e-8
+ema_decay: 0.9
+checkpoint_interval: 30
+selected_checkpoint_round: 90
 student: {adaptation: lora, rank: 32, alpha: 64}
 reward_heads: [preference]
 # Teacher register: unified_v3 EMA final (NOT exp11 -- the FLUX RG-OPD config
 # wires exp11 as a legacy default but overrides it to unified_v3 for the
 # shipped runs). Selection: argmax HPSv3 subject to CLIP-IQA >= 0.649.
-teacher_register: unified_v3_ema_final
+teacher_register: /kaimm-distill/ysguan/z-image-reward-matrix/node5/outputs/reward_register_flux_unified_v3/checkpoints/reward_token_final_ema.pt
 reward_scale: 0.80
 active_sigma_min: 0.2
 anchor: frozen_reference

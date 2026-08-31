@@ -1,26 +1,20 @@
 """FLUX.1-dev integration contract.
 
-Centralized pipeline/component loading + VAE encode/decode + T5/CLIP prompt-encode
-helpers shared by the cache scripts, the reward-register backbone, and the eval stack,
-mirroring ``zimage_common.py``.
+Centralized pipeline/component loading, VAE encode/decode, and prompt encoding.
 
 Load-bearing conventions (verified against the vendored diffusers 0.38 Flux code):
 
   * Timestep: FLUX conditions on sigma DIRECTLY (``pipeline_flux.py`` passes
     ``timestep = t/1000`` and ``FluxTransformer2DModel.forward`` rescales ``*1000``).
-    There is NO ``1 - u`` inversion anywhere in the Flux stack — do not copy the
-    Z-Image convention (``zimage_backbone.py:196``).
+    There is NO ``1 - u`` inversion anywhere in the Flux stack.
   * Guidance: dev is guidance-distilled; the raw guidance value (3.5 = FluxPipeline
     default) is passed and the transformer scales it ``*1000`` internally.
-  * VAE: byte-identical to the Z-Image VAE (md5 6f83de55cb720c7fae051b14528577bf),
-    same 16 channels / shift 0.1159 / scale 0.3611 — the ``zimage_latents`` x0 cache
-    is valid for FLUX as-is; the encode/decode helpers are re-exported from
-    ``zimage_common`` so every path shares one implementation.
+  * VAE: 16 channels, shift 0.1159, scale 0.3611.
   * Text: T5-XXL at max_length 512 with NO attention mask (stock Flux attends
     padding), plus the REAL CLIP pooled [768] vector (consumed by the modulation).
   * Scheduler: the stock config uses dynamic shifting; at 1024px (4096 image tokens)
     FluxPipeline resolves mu = max_shift = 1.15 => shift = e^1.15. We pin that static
-    shift for train/eval consistency (same pattern as zimage_common.SCHEDULER_SHIFT).
+    shift for train/eval consistency.
 """
 from __future__ import annotations
 
@@ -29,8 +23,6 @@ import math
 import os
 
 import torch
-
-from . import zimage_common
 
 FLUX_MODEL_PATH = os.environ.get("LRR_FLUX_MODEL", "black-forest-labs/FLUX.1-dev")
 GUIDANCE_SCALE = 3.5  # FluxPipeline dev default; pinned for train + all eval
@@ -41,11 +33,18 @@ CLIP_POOLED_DIM = 768
 # Effective static shift at 1024x1024 (image_seq_len=4096 -> mu=max_shift=1.15).
 SCHEDULER_SHIFT = math.exp(1.15)  # 3.158193...
 
-# Same VAE as Z-Image (verified byte-identical) — share one implementation.
-VAE_SCALING = zimage_common.VAE_SCALING
-VAE_SHIFT = zimage_common.VAE_SHIFT
-vae_encode_1024 = zimage_common.vae_encode_1024
-vae_decode = zimage_common.vae_decode
+VAE_SCALING = 0.3611
+VAE_SHIFT = 0.1159
+
+
+def vae_encode_1024(vae, pixel_values_fp32: torch.Tensor) -> torch.Tensor:
+    latents = vae.encode(pixel_values_fp32).latent_dist.mode()
+    return (latents - VAE_SHIFT) * VAE_SCALING
+
+
+def vae_decode(vae, latents: torch.Tensor) -> torch.Tensor:
+    images = vae.decode(latents / VAE_SCALING + VAE_SHIFT).sample
+    return (images / 2 + 0.5).clamp(0, 1)
 
 
 def load_flux_pipeline(dtype: torch.dtype = torch.bfloat16, local_files_only: bool = True, model_name_or_path: str = FLUX_MODEL_PATH):

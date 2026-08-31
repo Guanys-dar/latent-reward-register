@@ -3,11 +3,23 @@ backbone: sd3
 rollout_steps: 10
 optimized_steps: 9
 rollout_batches_per_update: 4
+rounds: 300
+batch_size: 2
+distributed_world_size: 8
+prompt_repeats: 1
+learning_rate: 3.0e-4
+weight_decay: 1.0e-4
+adam_beta1: 0.9
+adam_beta2: 0.999
+adam_epsilon: 1.0e-8
+ema_decay: 0.9
+checkpoint_interval: 30
+selected_checkpoint_round: 60
 student: {adaptation: lora, rank: 32, alpha: 64}
 reward_heads: [preference]
 # Teacher register: exp11 EMA (SD3). RG-OPD was run against the exp11 register,
 # not the later exp15/exp16 variants.
-teacher_register: exp11_ema
+teacher_register: /kaimm-distill/ysguan/Image-Reward-Token-Exps/Reward-Token-Image-0420/outputs/exp11_multihead_noattn2_sd3_8gpu/checkpoints/reward_token_epoch_003_ema.pt
 reward_scale: 0.40
-active_sigma_min: 0.2
+active_sigma_min: 0.0
 anchor: frozen_reference

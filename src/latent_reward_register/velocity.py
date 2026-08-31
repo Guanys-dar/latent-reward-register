@@ -72,12 +72,27 @@ class SD3VelocityModel:
         self, latents: torch.Tensor, condition: RegisterCondition, timesteps: torch.Tensor, **kwargs
     ) -> torch.Tensor:
         del kwargs
-        conditional = self._forward(latents, condition, timesteps)
         if self.negative is None or self.guidance_scale == 1.0:
-            return conditional.float()
-        unconditional = self._forward(latents, self.negative, timesteps)
+            return self._forward(latents, condition, timesteps).float()
+        if condition.pooled_prompt_embeds is None or self.negative.pooled_prompt_embeds is None:
+            raise ValueError("SD3 requires pooled prompt embeddings")
+        dtype = next(self.transformer.parameters()).dtype
+        output = _sample(
+            self.transformer(
+                hidden_states=torch.cat((latents, latents)).to(dtype=dtype),
+                encoder_hidden_states=torch.cat(
+                    (self.negative.prompt_embeds, condition.prompt_embeds)
+                ).to(dtype=dtype),
+                pooled_projections=torch.cat(
+                    (self.negative.pooled_prompt_embeds, condition.pooled_prompt_embeds)
+                ).to(dtype=dtype),
+                timestep=torch.cat((timesteps, timesteps)),
+                return_dict=True,
+            )
+        ).float()
+        unconditional, conditional = output.chunk(2)
         return classifier_free_velocity(
-            conditional.float(), unconditional.float(), self.guidance_scale
+            conditional, unconditional, self.guidance_scale
         )
 
 

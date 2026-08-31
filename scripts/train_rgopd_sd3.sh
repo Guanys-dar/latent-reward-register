@@ -9,7 +9,7 @@ set -euo pipefail
 CHECKPOINT="${CHECKPOINT:?set CHECKPOINT to the SD3 teacher register (exp11 EMA)}"
 PROMPTS="${PROMPTS:?set PROMPTS to a file of prompts, one per line}"
 OUTPUT="${OUTPUT:-outputs/rgopd_sd3}"
-ROUNDS="${ROUNDS:-100}"
+ROUNDS="${ROUNDS:-300}"
 
 lrr train-rgopd \
     --config configs/rgopd/sd3/paper.yaml \

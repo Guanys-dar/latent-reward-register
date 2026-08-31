@@ -28,4 +28,4 @@ The prompt file contains one prompt per line. Images are written to
 
 The register trunk is frozen during scoring. The implementation temporarily
 enables gradients with respect to the input latent only; model parameters remain
-frozen. Z-Image guided sampling is not included.
+frozen.

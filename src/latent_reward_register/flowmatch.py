@@ -147,3 +147,14 @@ def sigma_schedule(steps: int, *, shift: float = 3.0) -> tuple[float, ...]:
         linear = [SIGMA_MAX - span * index / (steps - 1) for index in range(steps)]
     shifted = [shift * value / (1.0 + (shift - 1.0) * value) for value in linear]
     return tuple(shifted) + (0.0,)
+
+
+def flux_sigma_schedule(steps: int, *, shift: float) -> tuple[float, ...]:
+    """FLUX grid: ``linspace(1, 1/steps, steps)`` followed by dynamic shift."""
+    if steps < 1:
+        raise ValueError(f"steps must be at least 1, got {steps}")
+    if shift <= 0:
+        raise ValueError(f"shift must be positive, got {shift}")
+    linear = [1.0 - (1.0 - 1.0 / steps) * index / max(1, steps - 1) for index in range(steps)]
+    shifted = [shift * value / (1.0 + (shift - 1.0) * value) for value in linear]
+    return tuple(shifted) + (0.0,)

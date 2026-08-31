@@ -10,9 +10,17 @@ checkpoint_root: /path/to/checkpoints
 
 # Local model snapshots; omit to resolve from the Hugging Face Hub.
 models:
-  sd3: stabilityai/stable-diffusion-3-medium-diffusers
-  flux: black-forest-labs/FLUX.1-dev
-  zimage: Tongyi-MAI/Z-Image-Turbo
+  sd3: /kaimm-distill/ysguan/stable-diffusion-3-medium-diffusers
+  flux: /kaimm-distill/ysguan/ckpt_dev
+
+# Paper assets discovered from the original repositories on this machine.
+paper_checkpoints:
+  exp11_ema: /kaimm-distill/ysguan/Image-Reward-Token-Exps/Reward-Token-Image-0420/outputs/exp11_multihead_noattn2_sd3_8gpu/checkpoints/reward_token_epoch_003_ema.pt
+  flux_exp11_ema: /kaimm-distill/ysguan/z-image-reward-matrix/node4/outputs/reward_register_flux_exp11/checkpoints/reward_token_final_ema.pt
+  flux_unified_v3_ema: /kaimm-distill/ysguan/z-image-reward-matrix/node5/outputs/reward_register_flux_unified_v3/checkpoints/reward_token_final_ema.pt
+  rgopd_sd3_checkpoint_60: /home/guanyuanshen/rt-gradient-opd/RG-OPD/logs/[RG-OPD A + SD3-M + exp11ema HPS rt0.40]/checkpoints/checkpoint-60/lora
+  rgopd_sd3_checkpoint_90: /home/guanyuanshen/rt-gradient-opd/RG-OPD/logs/[RG-OPD Aema + SD3-M + exp11ema HPS rt0.20 tema0.95]/checkpoints/checkpoint-90/lora
+  rgopd_flux_hps_checkpoint_90: /kaimm-distill/ysguan/z-image-reward-matrix/node5/outputs/flux_opd_unified_v3/[FLUX-OPD B + unified-v3 HPS rt0.80 sigma>0.2 e150]/checkpoints/checkpoint-90/lora
 
 # Optional experiment tracking. Leave blank to disable.
 tracking:
