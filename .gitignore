@@ -10,3 +10,7 @@ outputs/
 checkpoints/
 
 configs/local.yaml
+
+# Private equivalence audit and local validation suite
+audit/
+tests/
