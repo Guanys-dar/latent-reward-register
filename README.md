@@ -1,3 +1,9 @@
+<p align="center">
+  <a href="https://kling.ai/">
+    <img src="assets/kling-ai-icon.png" width="80" height="80" alt="Kling AI">
+  </a>
+</p>
+
 <h1 align="center">Latent Reward Registers for Diffusion Preference Alignment</h1>
 
 <p align="center">
