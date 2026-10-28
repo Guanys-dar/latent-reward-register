@@ -147,8 +147,14 @@ def _execute_workflow(args: argparse.Namespace, workflow) -> int:
                 pair_parquet=args.training_parquet or data.get("train_parquet"),
                 multihead_manifest=args.multihead_manifest or data.get("multihead_manifest"),
                 latents_from_manifest=bool(data.get("latents_from_manifest", False)),
-                group_size=args.group_size or int((config.get("train") or {}).get("group_size", 2)),
-                batch_size=args.batch_size or int((config.get("train") or {}).get("batch_size", 8)),
+                group_size=(
+                    args.group_size if args.group_size is not None
+                    else int((config.get("train") or {}).get("group_size", 2))
+                ),
+                batch_size=(
+                    args.batch_size if args.batch_size is not None
+                    else int((config.get("train") or {}).get("batch_size", 8))
+                ),
                 max_batches=args.max_batches,
                 precision=args.precision,
                 device=args.device,
@@ -164,6 +170,7 @@ def _execute_workflow(args: argparse.Namespace, workflow) -> int:
             raise ValueError("sample needs --register-checkpoint")
         prompts = _read_prompts(args.prompt_file, args.prompt)
         resolution = tuple(config.get("resolution", (1024, 1024)))
+        guidance = config.get("guidance") or {}
         result = run_sampling(
             SampleRequest(
                 backbone=workflow.backbone,
@@ -179,6 +186,8 @@ def _execute_workflow(args: argparse.Namespace, workflow) -> int:
                     )
                 ),
                 register_checkpoint=args.register_checkpoint,
+                min_gradient_rms=float(guidance.get("min_gradient_rms", 1e-6)),
+                max_scale_factor=float(guidance.get("max_scale_factor", 2.0)),
                 seed=args.seed,
                 precision=args.precision,
                 device=args.device,
@@ -219,9 +228,9 @@ def _execute_workflow(args: argparse.Namespace, workflow) -> int:
             optimized_steps=int(config.get("optimized_steps", 9)),
             lora_rank=int(student.get("rank", 32)),
             lora_alpha=int(student.get("alpha", 64)),
-            rounds=args.rounds or int(config.get("rounds", 300)),
+            rounds=args.rounds if args.rounds is not None else int(config.get("rounds", 300)),
             rollout_batches_per_update=int(config.get("rollout_batches_per_update", 4)),
-            batch_size=args.batch_size or int(config.get("batch_size", 2)),
+            batch_size=args.batch_size if args.batch_size is not None else int(config.get("batch_size", 2)),
             learning_rate=float(config.get("learning_rate", 3e-4)),
             weight_decay=float(config.get("weight_decay", 1e-4)),
             adam_beta1=float(config.get("adam_beta1", 0.9)),

@@ -11,6 +11,6 @@ checkpoints/
 
 configs/local.yaml
 
-# Private equivalence audit and local validation suite
+# Local validation artifacts
 audit/
 tests/

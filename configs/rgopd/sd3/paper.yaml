@@ -17,9 +17,7 @@ checkpoint_interval: 30
 selected_checkpoint_round: 60
 student: {adaptation: lora, rank: 32, alpha: 64}
 reward_heads: [preference]
-# Teacher register: exp11 EMA (SD3). RG-OPD was run against the exp11 register,
-# not the later exp15/exp16 variants.
-teacher_register: /kaimm-distill/ysguan/Image-Reward-Token-Exps/Reward-Token-Image-0420/outputs/exp11_multihead_noattn2_sd3_8gpu/checkpoints/reward_token_epoch_003_ema.pt
+# Supply the teacher register checkpoint with --register-checkpoint.
 reward_scale: 0.40
 active_sigma_min: 0.0
 anchor: frozen_reference

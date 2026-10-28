@@ -4,7 +4,13 @@
   </a>
 </p>
 
-<h1 align="center">Latent Reward Registers for Diffusion Preference Alignment</h1>
+<h1 align="center" id="latent-reward-registers-for-diffusion-preference-alignment">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/title-dark.svg">
+    <source media="(prefers-color-scheme: light)" srcset="assets/title-light.svg">
+    <img src="assets/title-light.svg" width="680" alt="Latent Reward Registers for Diffusion Preference Alignment">
+  </picture>
+</h1>
 
 <p align="center">
   <a href="https://arxiv.org/abs/2608.03929"><img src="https://img.shields.io/badge/arXiv-2608.03929-b31b1b.svg" alt="arXiv"></a>
@@ -13,7 +19,7 @@
   <img src="https://img.shields.io/badge/Website-Coming%20Soon-green.svg" alt="Website coming soon">
 </p>
 
-<p align="center"><strong>To be submitted to ICLR 2027.</strong></p>
+<p align="center"><strong>Under review at ICLR 2027.</strong></p>
 
 Diffusion alignment typically scores only the final image, so every intermediate
 denoising step faces a difficult temporal credit-assignment problem. **We propose

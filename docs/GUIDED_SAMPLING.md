@@ -11,6 +11,10 @@ For each configured reward head, the gradient is unit-RMS normalized. The
 combined correction is magnitude-matched to the base diffusion step and
 clipped. Steps outside the configured sigma bands skip register evaluation.
 
+`guidance.min_gradient_rms` gates the sum of the individually unit-RMS-normalized
+head gradients; it is not a threshold on the raw per-head gradients.
+`guidance.max_scale_factor` caps the correction relative to the scheduled magnitude.
+
 The paper presets are:
 
 - `configs/rgs/sd3/paper.yaml`: SD3-Medium, 42 steps, CFG 4.5.

@@ -225,6 +225,7 @@ def train_register(
     ema = EMA(model, config.ema_decay)
     model.train()
     optimizer.zero_grad(set_to_none=True)
+    optimizer_updates = 0
     for _ in range(config.epochs):
         epoch_batches = batches() if callable(batches) else batches
         pending = 0
@@ -236,7 +237,7 @@ def train_register(
             else:
                 timesteps = batch.sigma
             predictions = model.score_groups(batch.latents, batch.condition, timesteps)
-            loss, _ = multihead_group_loss(
+            loss, per_head = multihead_group_loss(
                 {name: predictions[name] for name in batch.targets},
                 batch.targets,
                 sigmas=batch.sigma,
@@ -245,11 +246,17 @@ def train_register(
                 group_mask=batch.group_mask,
                 min_target_gap=config.min_target_gap,
             )
+            if not any(
+                int(result.pair_count) > 0 and float((head_weights or {}).get(name, 1.0)) != 0.0
+                for name, result in per_head.items()
+            ):
+                continue
             (loss / config.gradient_accumulation_steps).backward()
             pending += 1
             if pending == config.gradient_accumulation_steps:
                 torch.nn.utils.clip_grad_norm_(trainable, config.max_grad_norm)
                 optimizer.step()
+                optimizer_updates += 1
                 scheduler.step()
                 optimizer.zero_grad(set_to_none=True)
                 ema.update(model)
@@ -261,9 +268,15 @@ def train_register(
                     parameter.grad.mul_(correction)
             torch.nn.utils.clip_grad_norm_(trainable, config.max_grad_norm)
             optimizer.step()
+            optimizer_updates += 1
             scheduler.step()
             optimizer.zero_grad(set_to_none=True)
             ema.update(model)
+    if optimizer_updates == 0:
+        raise ValueError(
+            "Register training performed no optimizer updates: check the dataset, "
+            "batch size, drop_last, epochs, and reward-head supervision"
+        )
     raw_state = ema.copy_to(model)
     try:
         save_register_checkpoint(

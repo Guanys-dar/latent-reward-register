@@ -4,7 +4,7 @@
 # The FLUX paper preset uses reward scale 0.80.
 set -euo pipefail
 
-CHECKPOINT="${CHECKPOINT:?set CHECKPOINT to the FLUX teacher register (unified-v3 EMA)}"
+CHECKPOINT="${CHECKPOINT:?set CHECKPOINT to the FLUX teacher register checkpoint}"
 PROMPTS="${PROMPTS:?set PROMPTS to a file of prompts, one per line}"
 OUTPUT="${OUTPUT:-outputs/rgopd_flux}"
 ROUNDS="${ROUNDS:-300}"

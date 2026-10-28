@@ -13,6 +13,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass, replace
+from math import isfinite
 from pathlib import Path
 from typing import Any
 
@@ -20,7 +21,7 @@ import torch
 
 from .config import LocalConfig
 from .flowmatch import flux_sigma_schedule, make_reference_step, sigma_schedule
-from .guidance import GuidanceSchedule
+from .guidance import GuidanceSchedule, RewardGradientGuidance
 from .types import RegisterCondition
 from .velocity import FluxVelocityModel, SD3VelocityModel
 
@@ -227,6 +228,8 @@ class SampleRequest:
     precision: str = "bf16"
     device: str = "cuda"
     local_files_only: bool = False
+    min_gradient_rms: float = 1e-6
+    max_scale_factor: float = 2.0
 
 
 def _latent_shape(backbone: str, resolution: tuple[int, int], batch: int) -> tuple[int, ...]:
@@ -256,6 +259,10 @@ def run_sampling(request: SampleRequest, *, local: LocalConfig | None = None) ->
     """
     from .sampling import reward_guided_sample
 
+    for name in ("min_gradient_rms", "max_scale_factor"):
+        value = getattr(request, name)
+        if not isfinite(value) or value < 0:
+            raise ValueError(f"{name} must be finite and non-negative")
     local = local or LocalConfig()
     dtype = resolve_dtype(request.precision)
     device = torch.device(request.device)
@@ -332,6 +339,10 @@ def run_sampling(request: SampleRequest, *, local: LocalConfig | None = None) ->
         sigmas=sigmas,
         heads=request.heads,
         schedule=request.schedule,
+        guidance=RewardGradientGuidance(
+            min_gradient_rms=request.min_gradient_rms,
+            max_scale_factor=request.max_scale_factor,
+        ),
         reference_step=make_reference_step(velocity),
         return_trace=True,
     )
@@ -408,6 +419,17 @@ def run_register_training(
     dtype = resolve_dtype(request.precision)
     seed = int(request.train_config.get("seed", 42))
     seed_everything(seed)
+    dataset_config = DatasetConfig(
+        group_size=request.group_size,
+        batch_size=request.batch_size,
+        heads=tuple(request.register_config["head_names"]),
+        require_pooled=request.backbone in {"sd3", "flux"},
+        seed=seed,
+        shuffle=bool(request.train_config.get("shuffle", True)),
+        drop_last=bool(request.train_config.get("drop_last", True)),
+    )
+    if request.max_batches is not None and request.max_batches < 1:
+        raise ValueError("--max-batches must be positive")
     head_names = tuple(request.register_config["head_names"])
     feature_layers = tuple(request.register_config["feature_layers"])
     manifest_path = local.resolve_data(request.manifest)
@@ -432,6 +454,11 @@ def run_register_training(
             f"{manifest_path}: no group holds {request.group_size} images; "
             f"{total} groups read. Lower group_size or check the manifest."
         )
+    if dataset_config.drop_last and usable < request.batch_size:
+        raise ValueError(
+            f"Only {usable} usable groups for batch_size={request.batch_size} with drop_last=true; "
+            "lower --batch-size or set train.drop_last=false."
+        )
 
     register = build_register(
         request.backbone,
@@ -445,15 +472,6 @@ def run_register_training(
     )
     register.to(torch.device(request.device))
 
-    dataset_config = DatasetConfig(
-        group_size=request.group_size,
-        batch_size=request.batch_size,
-        heads=head_names,
-        require_pooled=request.backbone in {"sd3", "flux"},
-        seed=seed,
-        shuffle=bool(request.train_config.get("shuffle", True)),
-        drop_last=bool(request.train_config.get("drop_last", True)),
-    )
     epoch_index = 0
 
     def batches():
@@ -506,7 +524,9 @@ def run_register_training(
         "groups_usable": usable,
         "groups_total": total,
         "batches": min(
-            (usable + request.batch_size - 1) // request.batch_size,
+            usable // request.batch_size
+            if dataset_config.drop_last
+            else (usable + request.batch_size - 1) // request.batch_size,
             request.max_batches if request.max_batches is not None else usable,
         ),
         "heads": list(head_names),
@@ -593,6 +613,28 @@ def run_rgopd_training(
     from .training import RGOPDEMA, seed_everything
     from .velocity import attach_lora_student
 
+    if request.rounds < 1:
+        raise ValueError("rounds must be positive")
+    for name in ("batch_size", "rollout_batches_per_update", "distributed_world_size", "prompt_repeats"):
+        if getattr(request, name) < 1:
+            raise ValueError(f"{name} must be positive")
+    samples_per_batch = request.distributed_world_size * request.batch_size
+    if samples_per_batch % request.prompt_repeats:
+        raise ValueError("prompt_repeats must divide distributed_world_size * batch_size")
+    required_prompts = samples_per_batch // request.prompt_repeats
+    if len(request.prompts) < required_prompts:
+        raise ValueError(f"RG-OPD needs at least {required_prompts} prompts for the configured batch")
+    selected_round = request.selected_checkpoint_round
+    if selected_round is not None and selected_round < 1:
+        raise ValueError("selected_checkpoint_round must be positive")
+    export_final = selected_round is None or selected_round >= request.rounds
+    if export_final:
+        selected_round = request.rounds
+    elif request.checkpoint_interval < 1 or selected_round % request.checkpoint_interval:
+        raise ValueError(
+            f"Selected checkpoint round {selected_round} cannot be saved with "
+            f"checkpoint_interval={request.checkpoint_interval}"
+        )
     local = local or LocalConfig()
     dtype = resolve_dtype(request.precision)
     device = torch.device(request.device)
@@ -647,8 +689,6 @@ def run_rgopd_training(
         if request.backbone == "flux"
         else sigma_schedule(request.rollout_steps, shift=schedule_shift)
     )
-    if request.distributed_world_size < 1:
-        raise ValueError("distributed_world_size must be positive")
     rank_generators = [
         torch.Generator(device=device).manual_seed(request.seed + rank)
         for rank in range(request.distributed_world_size)
@@ -760,14 +800,13 @@ def run_rgopd_training(
 
     output = Path(request.output_directory)
     output.mkdir(parents=True, exist_ok=True)
-    selected_round = request.selected_checkpoint_round or request.rounds
     selected = output / "checkpoints" / f"checkpoint-{selected_round}" / "lora"
-    if request.selected_checkpoint_round is not None and not selected.is_dir():
+    if not export_final and not selected.is_dir():
         raise ValueError(
             f"Selected checkpoint round {selected_round} was not saved; "
             f"checkpoint_interval={request.checkpoint_interval}"
         )
-    if selected.is_dir():
+    if not export_final:
         import shutil
 
         shutil.copytree(selected, output / "lora", dirs_exist_ok=True)
@@ -783,6 +822,8 @@ def run_rgopd_training(
         "rollout_batches": len(traces),
         "distributed_world_size": request.distributed_world_size,
         "selected_checkpoint_round": selected_round,
+        "requested_checkpoint_round": request.selected_checkpoint_round,
+        "selection_source": "final_ema" if export_final else "saved_checkpoint",
         "trainable_parameters": sum(p.numel() for p in trainable),
         "mean_loss": sum(t.mean_loss for t in traces) / len(traces) if traces else 0.0,
         "guidance_fraction": traces[-1].guidance_fraction if traces else 0.0,

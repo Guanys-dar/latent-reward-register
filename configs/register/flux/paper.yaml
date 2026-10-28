@@ -2,10 +2,10 @@ task: train-register
 backbone:
   name: flux
   model_name_or_path: black-forest-labs/FLUX.1-dev
-  revision: c8c84018e
+  revision: main
   embedded_guidance_scale: 3.5
 register:
-  # Two heads only (unified_v3): preference <- teacher_score_zscore (HPSv3),
+  # Two heads: preference <- teacher_score_zscore (HPSv3),
   # imagereward <- imagereward_score. Order must match score_keys.
   head_names: [preference, imagereward]
   score_keys: [teacher_score_zscore, imagereward_score]

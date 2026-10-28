@@ -6,7 +6,9 @@ feature extraction stays in the model implementation.
 ## Input data
 
 Training consumes JSON Lines with one group per prompt. Each group contains
-cached prompt embeddings and a ranked list of cached image latents:
+cached prompt embeddings and at least two cached image latents with teacher
+scores. The example below is expanded for readability; store each complete
+group object on one line in the JSONL file:
 
 ```json
 {
@@ -21,6 +23,13 @@ cached prompt embeddings and a ranked list of cached image latents:
       "teacher_score_zscore": 1.2,
       "pickscore": 0.8,
       "imagereward_score": 0.4
+    },
+    {
+      "sample_id": "sample-2",
+      "latent_x0_path": "latents/sample-2.pt",
+      "teacher_score_zscore": -0.3,
+      "pickscore": 0.2,
+      "imagereward_score": 0.1
     }
   ]
 }
@@ -47,7 +56,10 @@ MANIFEST=/path/to/groups.jsonl PARQUET=/path/to/pairs.parquet \
   MULTIHEAD_MANIFEST=/path/to/scored-groups.jsonl bash scripts/train_register_flux.sh
 ```
 
-Use `--max-batches 4` for a short real-model check.
+Use `--max-batches 4` for a short real-model check. Both presets set
+`drop_last: true`, so the input must contain at least one full batch: eight
+pairs for SD3 or four for FLUX. For a smaller check, pass `--batch-size 1`;
+each manifest group still needs at least two image records.
 
 Checkpoints include the register architecture config needed to reconstruct the
 model. Published or pretrained checkpoints are external assets.

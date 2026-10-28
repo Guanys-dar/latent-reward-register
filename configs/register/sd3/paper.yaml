@@ -2,12 +2,12 @@ task: train-register
 backbone:
   name: sd3
   model_name_or_path: stabilityai/stable-diffusion-3-medium-diffusers
-  revision: c8c84018e
+  revision: main
 register:
   # Order MUST match the manifest score keys: preference <- teacher_score_zscore
   # (HPSv3), pickscore <- pickscore, imagereward <- imagereward_score. The loss
   # aligns targets[:, h] with head_names[h], so a reordering silently mistrains.
-  # All three heads are trained jointly with equal weight (exp11); the paper
+  # All three heads are trained jointly with equal weight; the paper
   # reports preference and imagereward only.
   head_names: [preference, pickscore, imagereward]
   score_keys: [teacher_score_zscore, pickscore, imagereward_score]
