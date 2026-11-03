@@ -19,8 +19,6 @@
   <img src="https://img.shields.io/badge/Website-Coming%20Soon-green.svg" alt="Website coming soon">
 </p>
 
-<p align="center"><strong>Under review at ICLR 2027.</strong></p>
-
 Diffusion alignment typically scores only the final image, so every intermediate
 denoising step faces a difficult temporal credit-assignment problem. **We propose
 that visual reward models can be built directly on visual generators, enabling
